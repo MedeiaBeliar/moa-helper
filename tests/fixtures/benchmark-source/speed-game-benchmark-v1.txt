@@ -1,0 +1,93 @@
+// Actual-death-only comparison, with complete deterministic resume checkpoints.
+// No server and no reads/writes to the user's live saved game.
+import {readFile,writeFile,mkdir,rename} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {Worker} from 'node:worker_threads';
+import assert from 'node:assert/strict';
+import {cpus,totalmem} from 'node:os';
+import {createGame,deal,legalMoves,isDead,playMove,rerollPiece} from './game-model.mjs';
+import {place} from '../public/solver.js';
+import {createEvaluator} from '../public/policy.js';
+const variant=process.env.SPEED_VARIANT||'fast',seed=Number(process.env.SPEED_SEED||509),prefix=process.env.SPEED_REPORT||'speed-game';
+assert.ok(['original','fast'].includes(variant));assert.ok(Number.isInteger(seed)&&seed>=0&&seed<2**32);assert.match(prefix,/^[a-zA-Z0-9_-]+$/);
+const snapshot=JSON.parse(await readFile(new URL('./fixtures/observed-speed-comparison.json',import.meta.url),'utf8'));
+const catalogue=snapshot.catalogue,normal=catalogue.map(b=>b.normal+1),total=normal.reduce((s,n)=>s+n,0),reroll=catalogue.map((b,i)=>b.reroll+30*normal[i]/total);
+const statistics={entries:catalogue.map(b=>({blockId:b.id,name:b.name,normal:b.normal,reroll:b.reroll}))};
+const hashes={},files=variant==='original'?['solver.js','future.js','enhanced.js','search.js','policy.js'].map(f=>`../public/original-v2/${f}`):['solver.js','future.js','enhanced.js','fast.js','search.js','policy.js'].map(f=>`../public/${f}`);
+files.push('./game-model.mjs','./speed-game-worker.mjs','./speed-game-benchmark.mjs','./fixtures/observed-speed-comparison.json');
+for(const file of files)hashes[file]=createHash('sha256').update(await readFile(new URL(file,import.meta.url))).digest('hex');
+const root=`test-results/${prefix}-${variant}-${seed}`,checkpointPath=`${root}-checkpoint.json`,reportPath=`${root}.json`;
+await mkdir('test-results',{recursive:true});
+let saved;try{saved=JSON.parse(await readFile(checkpointPath,'utf8'));}catch(error){if(error.code!=='ENOENT')throw error;}
+if(saved){assert.equal(saved.variant,variant);assert.equal(saved.seed,seed);assert.deepEqual(saved.hashes,hashes,'Code or input changed; use another SPEED_REPORT for a new experiment');}
+const game=saved?.game??createGame(),rng=saved?.rng??{normal:seed>>>0,reroll:(seed^0x91843)>>>0,icon:(seed^0x981673)>>>0,type:(seed^0x328976)>>>0};
+const random=key=>()=>{rng[key]=(Math.imul(rng[key],1664525)+1013904223)>>>0;return rng[key]/4294967296;};
+const draws=random('normal'),replacements=random('reroll'),icons=random('icon'),types=random('type');
+const ledger=saved?.ledger??{calls:0,totalMs:0,maxMs:0,over1000:0,over10000:0,watchdogs:0,fallbacks:0,partialPlans:0,batchMs:{},capReached:null,trace:[]};
+const startedAt=saved?.startedAt??new Date().toISOString(),evaluate=createEvaluator(10);
+const budget=variant==='original'?8000:850,hardLimit=variant==='original'?9800:950;
+let worker,nextId=0,interrupted=false;
+const summary=status=>({variant,seed,status,deathVerified:status==='dead',score:game.score,scoreCap:500000,rawScoreDiagnosticOnly:game.rawScore,
+  completedBatches:game.batches-Number(game.pieces.some(p=>!p.used)),placements:game.placements,lines:game.lines,skills:{...game.skills},
+  dotsUsed:game.dotsUsed,rerollsUsed:game.rerollsUsed,skillsAcquired:game.skillsAcquired,board:game.board,remaining:game.pieces.filter(p=>!p.used),
+  timing:{calls:ledger.calls,averageMs:Math.round(ledger.totalMs/(ledger.calls||1)),maxMs:Math.round(ledger.maxMs),over1000:ledger.over1000,over10000:ledger.over10000,
+    watchdogs:ledger.watchdogs,maxBatchCumulativeMs:Math.round(Math.max(0,...Object.values(ledger.batchMs)))},fallbacks:ledger.fallbacks,partialPlans:ledger.partialPlans,
+  capReached:ledger.capReached,updatedAt:new Date().toISOString(),startedAt,normalSamples:catalogue.reduce((s,b)=>s+b.normal,0),rerollSamples:catalogue.reduce((s,b)=>s+b.reroll,0),
+  conditions:'Observed aggregate draws at every stage; unknown stage probabilities not invented. Icons random empty tiles, dot40/reroll60, acquisition50. No batch or score stop cap. Fallbacks separately counted.',
+  hardware:{cpu:cpus()[0].model,threads:cpus().length,memoryGiB:Math.round(totalmem()/2**30)},hashes});
+async function atomic(file,data){const temp=`${file}.tmp`;await writeFile(temp,JSON.stringify(data));await rename(temp,file);}
+async function save(status){await atomic(checkpointPath,{version:1,variant,seed,hashes,startedAt,game,rng,ledger,status});await atomic(reportPath,summary(status));}
+async function ready(){
+  worker=new Worker(new URL('./speed-game-worker.mjs',import.meta.url),{workerData:{variant}});
+  await new Promise((resolve,reject)=>{worker.once('error',reject);worker.once('message',m=>m.ready?resolve():reject(new Error('Invalid worker startup')));});
+}
+async function recommend(input){
+  if(!worker)await ready();
+  const id=++nextId,started=performance.now();let latest=null;
+  return new Promise((resolve,reject)=>{
+    const active=worker;
+    const done=(result,expired=false)=>{clearTimeout(timer);active.off('message',onMessage);active.off('error',onError);resolve({result,expired,elapsed:performance.now()-started});};
+    const onError=error=>{clearTimeout(timer);active.off('message',onMessage);reject(error);};
+    const onMessage=m=>{if(m.id!==id)return;if(m.error){onError(new Error(m.error));return;}if(m.progress){if(!latest?.complete||m.result.complete)latest=m.result;return;}done(m.result);};
+    const timer=setTimeout(()=>{void active.terminate();worker=null;done(latest,true);},hardLimit);
+    active.on('message',onMessage);active.once('error',onError);active.postMessage({id,input});
+  });
+}
+function audit(){
+  let occupied=0;for(let row of game.board)while(row){row&=row-1;occupied++;}
+  assert.equal(game.placementScore+game.dotsUsed,game.lines*10+occupied);
+  assert.equal(game.skillsAcquired,game.dotsUsed+game.rerollsUsed+game.skills.dot+game.skills.reroll);
+  assert.equal(game.spawned,game.skillsAcquired+game.expired+game.icons.length);
+  assert.equal(game.rawScore,game.placementScore+game.lineScore+game.acquisitionScore);
+}
+function fallback(){
+  ledger.fallbacks++;const legal=legalMoves(game);
+  if(legal.length){let chosen=legal[0],value=-Infinity;for(const m of legal){const next=place(game.board,10,m.cells,m.x,m.y),v=300*next.cleared.length**2+evaluate(next.board);if(v>value){chosen=m;value=v;}}playMove(game,chosen,icons,types);}
+  else if(game.skills.reroll){const p=game.pieces.filter(p=>!p.used).sort((a,b)=>b.cells.length-a.cells.length)[0];rerollPiece(game,p.id,catalogue,reroll,replacements);}
+  else if(game.skills.dot){let chosen=null,value=-Infinity;for(let y=0;y<16;y++)for(let x=0;x<10;x++){const next=place(game.board,10,[[0,0]],x,y);if(!next)continue;const v=300*next.cleared.length**2+evaluate(next.board);if(v>value){chosen={kind:'dot',cells:[[0,0]],x,y};value=v;}}assert.ok(chosen);playMove(game,chosen,icons,types);}
+  else assert.ok(isDead(game));
+}
+process.on('SIGINT',()=>{interrupted=true;});process.on('SIGTERM',()=>{interrupted=true;});
+console.log(JSON.stringify({resumed:!!saved,...summary('running')}));
+try{
+  if(!game.pieces.length)deal(game,catalogue,normal,draws);
+  await save('running');
+  while(!isDead(game)&&!interrupted){
+    if(game.pieces.every(p=>p.used)){deal(game,catalogue,normal,draws);await save('running');continue;}
+    const start=performance.now(),decision=await recommend({board:game.board.slice(),cols:10,pieces:game.pieces.filter(p=>!p.used).map(p=>({...p})),catalogue,statistics,skills:{...game.skills},
+      options:{rotate:true,reflect:true,gravity:false,lookAhead:true,timeLimit:budget,beamWidth:240}});
+    const result=decision.result;ledger.calls++;ledger.totalMs+=decision.elapsed;ledger.maxMs=Math.max(ledger.maxMs,decision.elapsed);
+    ledger.over1000+=Number(decision.elapsed>1000);ledger.over10000+=Number(decision.elapsed>10000);ledger.watchdogs+=Number(decision.expired);
+    let actions=0;
+    for(const move of result?.moves||[]){assert.deepEqual(move.boardBefore,game.board);playMove(game,move,icons,types);actions++;}
+    if(result?.reroll){rerollPiece(game,result.reroll.pieceId,catalogue,reroll,replacements);actions++;}
+    if(result&&!result.complete&&result.moves.length)ledger.partialPlans++;
+    if(!actions&&!isDead(game))fallback();audit();
+    const elapsed=performance.now()-start;ledger.batchMs[game.batches]=(ledger.batchMs[game.batches]||0)+elapsed;
+    ledger.trace.push({call:ledger.calls,batch:game.batches,score:game.score,elapsedMs:Math.round(decision.elapsed),complete:!!result?.complete,watchdog:decision.expired});
+    if(game.score===500000&&!ledger.capReached)ledger.capReached={calls:ledger.calls,batch:game.batches,placements:game.placements};
+    await save(isDead(game)?'dead':'running');
+    if(ledger.calls%25===0||isDead(game))console.log(JSON.stringify(summary(isDead(game)?'dead':'running')));
+  }
+  await save(isDead(game)?'dead':'interrupted');console.log(JSON.stringify(summary(isDead(game)?'dead':'interrupted')));
+}finally{await worker?.terminate();}

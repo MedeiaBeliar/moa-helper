@@ -1,0 +1,30 @@
+name: Bug report
+description: Describe a reproducible problem and its expected result.
+title: "[Bug] "
+body:
+  - type: textarea
+    id: behavior
+    attributes:
+      label: What happened?
+      description: Include the expected behavior and the actual result.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
+      description: Include the board, pieces, held skills, and action sequence. Remove personal information from screenshots.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      placeholder: "Windows 11 / browser version / Node version / commit"
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Additional evidence
+      description: Attach a relevant error or minimal fixture. Do not upload a full private save directory.
