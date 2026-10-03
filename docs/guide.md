@@ -107,6 +107,10 @@ Open **Target list** to add custom targets. Enter a whole number from 1 to 500,0
 
 **Draw statistics** opens a separate screen with normal draws, rerolls, and combined observations for all stages or a selected stage. **Back to play** returns to the previous manual or capture screen, preserving the current plan and live sharing session. Browser Back and Forward also navigate between screens. Filters remain in place while switching screens.
 
+**Export for a forum** creates tables containing block names, HTML block shapes, stage columns, percentages and counts. Normal draws and rerolls use separate tables and denominators. Choose both sources or one, all stages or the current scope, and Korean or English. The post contains no commentary, timestamp, CSS, images or scripts. Shapes use nested table cells with HTML size and background attributes.
+
+Use **Copy table** for a rich-text editor, **Copy HTML source** for its HTML mode, or **Save HTML file** to download the document. If clipboard access fails, the source is selected for manual copying. The preview shows the exported HTML. Exports ignore the search filter, retain unidentified and deleted-block counts, and use the current sort choice. Overall counts include all stages without double counting; unknown-stage columns appear in a full export only when records exist. Exporting does not record pending recognized pieces or change the save.
+
 [View the statistics panel](images/statistics.png).
 
 | Stage | Cumulative cleared rows |

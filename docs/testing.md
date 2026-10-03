@@ -15,6 +15,8 @@ Validation is Node-only. Do not start a web server, launch a browser, or run bro
 
 `npm test` checks placement, skills, targets, observations, persistence, recognition, and library consolidation with Node's test runner. Tests named HTTP are excluded. Temporary fixtures isolate runner checks from the player's `data/state.json`.
 
+Statistics export tests verify stage and source denominators, unknown-stage records, HTML cell geometry, name escaping, and rich-text versus source clipboard payloads. Clipboard APIs are stubbed; browser rendering and external forum sanitizers are not exercised.
+
 The 500k runner checks use two workers, stop and resume temporary checkpoints, and verify separate cap and death results. Constructed endpoint fixtures test lifecycle behavior; their scores are not performance measurements. `npm run test:parallel` separately verifies the original low-load comparison's checkpoint behavior.
 
 Probability regressions check stage boundaries, overall fallback, nonzero weights for unseen shapes, separation of normal and reroll records, and exclusion of unidentified or deleted entries. Paired recommendations on the same board verify that stage records affect ranking even without sampled lookahead. Proven failed future hands must remain in candidate comparisons. Pixel fixtures cover reported recognition errors without a browser.

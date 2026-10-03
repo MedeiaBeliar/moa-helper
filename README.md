@@ -43,6 +43,7 @@ Select a move, play the sequence, or scrub through individual steps to inspect a
 | Skills | Places dot skills between ordinary pieces and asks for actual reroll results. A completed plan must leave fewer than seven held skills. |
 | Target scores | Combines 16 automatic targets from 100,000 upward with saved custom targets. Custom targets also work on their own. Falls back to a scoring plan when a safe target path is unavailable. |
 | Draw statistics | A separate screen tracks normal draws and rerolls across all stages and by stage, with direct count editing, filtering, sorting, and undo. |
+| Forum export | Copies or downloads plain HTML tables of named block shapes, stage percentages and counts. No CSS or explanatory text. |
 | Block library | Includes a dot editor, import/export, and rotation/reflection duplicate detection. Duplicate records merge into the most-observed identity. |
 | Keyboard input | Accepts Hangul, English two-set keys, and composed syllables. Quick input searches after three names. Hover a board cell and use 1, 2, or backtick to add or remove ability markers. |
 | Game reset | Clears the current run while keeping the block library, observations and preferences. Undo restores the previous game. |

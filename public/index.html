@@ -58,7 +58,7 @@
 </aside>
 <section aria-labelledby="statistics-title" class="draw-statistics" id="statistics-screen" hidden="">
 <div id="statistics-panel">
-<header class="statistics-heading"><div><span aria-hidden="true" class="section-index">STATS</span><h2 id="statistics-title" tabindex="-1">블록 출현 통계</h2></div><button id="statistics-back" type="button">← 플레이로 돌아가기</button></header><p id="statistics-total" role="status">일반 0회 · 바꾸기 0회 · 합계 0회</p>
+<header class="statistics-heading"><div><span aria-hidden="true" class="section-index">STATS</span><h2 id="statistics-title" tabindex="-1">블록 출현 통계</h2></div><div class="statistics-heading-actions"><button id="statistics-export" type="button">커뮤니티용 내보내기</button><button id="statistics-back" type="button">← 플레이로 돌아가기</button></div></header><p id="statistics-total" role="status">일반 0회 · 바꾸기 0회 · 합계 0회</p>
 <p class="statistics-note" id="statistics-empty">선택한 범위에 아직 기록이 없습니다. 확인한 조각부터 자동 저장합니다.</p>
 <div class="statistics-tools"><label>확률 범위<select id="statistics-stage"><option value="all">전체 · 모든 단계 포함</option><option value="1">1단계 · 0~30줄</option><option value="2">2단계 · 31~60줄</option><option value="3">3단계 · 61~100줄</option><option value="4">4단계 · 101~150줄</option><option value="5">5단계 · 151줄 이상</option><option value="unknown">단계 미상 · 기존 기록</option></select></label><label>통계 검색<input autocomplete="off" id="statistics-search" placeholder="블록 이름 검색" type="search"/></label><label>정렬<select id="statistics-sort"><option value="total">전체 출현율 높은 순</option><option value="normal">일반 출현율 높은 순</option><option value="reroll">바꾸기 출현율 높은 순</option><option value="name">이름순</option></select></label><button id="statistics-undo" type="button" disabled="">↶ 되돌리기</button><button id="statistics-reset" type="button">통계 전체 초기화</button></div><div aria-label="선택한 범위의 블록별 출현 비율" class="statistics-chart" id="statistics-chart" role="group"></div>
 <p class="statistics-note" id="statistics-scope-note"></p>
@@ -72,6 +72,19 @@
 <details class="project-notice"><summary>이벤트 · 프로젝트 안내</summary><p>메이플스토리 한글 모아모아 이벤트: 2026년 10월 1일 오전 10시 ~ 2026년 10월 14일 오후 11시 59분.</p><p>메이플스토리의 상표, 로고, 게임 이미지 등 관련 권리는 넥슨 및 각 권리자에게 있습니다. 이 프로젝트는 개인·학습용 비공식 도우미이며, 넥슨이 제작하거나 승인한 프로그램이 아닙니다.</p></details>
 <dialog id="block-dialog"><form id="block-form"><div class="dialog-heading"><div><span class="small-label">10 × 10 도트 편집기</span><h2 id="dialog-title">블록 만들기</h2></div><button aria-label="편집기 닫기" class="icon-button" id="close-editor" type="button">×</button></div><label class="name-label">블록 이름<input id="block-name" maxlength="60" placeholder="예: 긴 ㄴ, 네모 고리" required=""/></label><p class="editor-hint">칸을 찍거나 드래그하세요. 빈 여백은 저장할 때 정리됩니다.</p><div aria-label="블록 모양 편집" class="dot-editor" id="dot-editor" role="group"></div><div class="editor-tools"><span id="dot-count">0칸</span><button id="rotate-editor" type="button">↻ 회전</button><button id="flip-editor" type="button">↔ 반전</button><button id="clear-editor" type="button">비우기</button></div><div class="editor-error" id="editor-error" role="alert"></div><div class="dialog-actions"><button hidden="" id="delete-block" type="button">블록 삭제</button><button class="primary" id="save-block" type="submit">블록 저장</button></div></form></dialog>
 <dialog aria-labelledby="command-title" id="command-dialog"><div class="command-heading"><span id="command-title">빠른 이동</span><button aria-label="빠른 이동 닫기" id="close-command">Esc</button></div><div id="command-actions"></div><p>Ctrl / ⌘ + K · 키보드로도 이동할 수 있습니다.</p></dialog>
+<dialog aria-labelledby="statistics-export-title" aria-describedby="statistics-export-help" id="statistics-export-dialog">
+<div class="dialog-heading"><h2 id="statistics-export-title">커뮤니티용 통계 내보내기</h2><button id="statistics-export-close" type="button">닫기</button></div>
+<p id="statistics-export-help">모양·단계·출현율·횟수만 내보냅니다.</p>
+<div class="statistics-export-options">
+<label>내보낼 범위<select id="statistics-export-scope"><option value="complete">전체 + 1~5단계 + 단계 미상</option><option id="statistics-export-current" value="current">현재 범위</option></select></label>
+<label>출현 구분<select id="statistics-export-source-kind"><option value="both">일반 + 바꾸기</option><option value="normal">일반 출현</option><option value="reroll">바꾸기</option></select></label>
+<label>글 언어<select id="statistics-export-language"><option value="ko">한국어</option><option value="en">English</option></select></label>
+</div>
+<div class="statistics-export-actions"><button class="primary" id="statistics-copy-table" type="button">표 복사</button><button id="statistics-copy-html" type="button">HTML 소스 복사</button><button id="statistics-download-html" type="button">HTML 파일 저장</button></div>
+<p aria-atomic="true" id="statistics-export-status" role="status"></p>
+<iframe id="statistics-export-preview" referrerpolicy="no-referrer" sandbox="" title="커뮤니티 글 미리보기"></iframe>
+<details id="statistics-export-code"><summary>HTML 소스 보기</summary><label class="sr-only" for="statistics-export-source">복사할 HTML 소스</label><textarea id="statistics-export-source" readonly="" spellcheck="false" translate="no" wrap="off"></textarea></details>
+</dialog>
 <div aria-hidden="true" id="motion-layer"></div>
 <script src="/app.js" type="module"></script>
 </body>
