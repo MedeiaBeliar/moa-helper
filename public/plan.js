@@ -1,6 +1,6 @@
 import { place, variants, skillCounts } from './solver.js';
 import { recordNormalDraws, recordRerollDraw, addClearedLines,stageForLines } from './statistics.js';
-import {scoreMoves,isTargetScore} from './targets.js';
+import {scoreMoves,isTargetScore,activeTargets} from './targets.js';
 import {advanceSpawnRemaining,remainingIconOrder} from './abilities.js';
 
 // Three ordinary pieces have at most six orders. Hide labels only when all of
@@ -107,7 +107,7 @@ export function applyTargetPlan(state,result){
   const full=replay(confirmPlacedDraws(state,result.moves),result);
   if(full.slots.some(slot=>!slot.used)||full.skills.dot+full.skills.reroll>=7)throw new Error('세 조각의 생존 경로를 먼저 확인하세요.');
   const prefix=result.moves.slice(0,step),next=replay(confirmPlacedDraws(state,prefix),{...result,moves:prefix});
-  if(next.currentScore!==result.target.hit||!isTargetScore(next.currentScore)||next.skills.dot+next.skills.reroll>=7)throw new Error('목표 점수 또는 스킬 수가 변경됐습니다. 다시 추천하세요.');
+  if(next.currentScore!==result.target.hit||!isTargetScore(next.currentScore,activeTargets(state))||next.skills.dot+next.skills.reroll>=7)throw new Error('목표 점수 또는 스킬 수가 변경됐습니다. 다시 추천하세요.');
   return next.slots.every(slot=>slot.used)?{...next,slots:[null,null,null]}:next;
 }
 

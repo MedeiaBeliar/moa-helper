@@ -109,34 +109,39 @@ try {
     await page.locator('#save-block').click();
   }
   const oldBoard=(await store.read()).board;
+  await page.locator('#reset-tray').click();
   await page.locator('#search-blocks').fill('ㅅㅅㅡ');await page.locator('#search-blocks').press('Enter');
   assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ','ㅡ']);
   assert.equal(await page.locator('#search-blocks').inputValue(),'');assert.equal(await page.locator('.move-button').count(),0);
   await page.getByText('파일에 저장됨',{exact:true}).waitFor();const quick=await store.read();
   assert.equal(new Set(quick.slots.map(slot=>slot.instanceId)).size,3);assert.deepEqual(quick.board,oldBoard);
   for(const [input,expected] of [['ttm',['ㅅ','ㅅ','ㅡ']],['ㄿㄱ',['ㄹ','ㅍ','ㄱ']],['fvr',['ㄹ','ㅍ','ㄱ']],['ㄳㅇ',['ㄱ','ㅅ','ㅇ']],['rtd',['ㄱ','ㅅ','ㅇ']],['긔',['ㄱ','ㅡ','ㅣ']],['rml',['ㄱ','ㅡ','ㅣ']]]){
+    await page.locator('#reset-tray').click();
     await page.locator('#search-blocks').fill(input);await page.locator('#search-blocks').press('Enter');
     assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),expected,input);
   }
   await page.locator('#search-blocks').fill('f');assert.ok((await page.locator('.block-content strong').allTextContents()).includes('ㄹ'));
-  await page.locator('#search-blocks').fill('ttm');await page.locator('#search-blocks').press('Enter');
+  await page.locator('#reset-tray').click();await page.locator('#search-blocks').fill('');
+  await page.getByRole('button',{name:'ㅅ 선택',exact:true}).click();
+  await page.getByRole('button',{name:'ㅅ 선택',exact:true}).click();
   await page.locator('#search-blocks').fill('ㅅㅎㅡ');await page.locator('#search-blocks').press('Enter');
   assert.match(await page.locator('#message').textContent(),/“ㅎ” 블록이 없습니다/);
-  assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ','ㅡ']);
+  assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ']);
   await page.locator('#search-blocks').fill('ㅅㅡ');await page.locator('#search-blocks').press('Enter');assert.match(await page.locator('#message').textContent(),/이름 3개/);
   await page.locator('#search-blocks').fill('ㅡ ㅅ ㅅ');await page.locator('#search-blocks').press('Enter');
   assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅡ','ㅅ','ㅅ']);
-  await page.locator('#undo').click();assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ','ㅡ']);
+  await page.locator('#undo').click();assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ']);
   // An IME Enter must wait for the final composition, then select exactly once.
   await page.locator('#search-blocks').focus();await page.locator('#search-blocks').dispatchEvent('compositionstart');await page.locator('#search-blocks').fill('ㅡㅡㅅ');
   await page.locator('#search-blocks').dispatchEvent('keydown',{key:'Enter',isComposing:true});
-  assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ','ㅡ']);
+  assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ']);
   await page.locator('#search-blocks').dispatchEvent('compositionend');
   await page.waitForFunction(()=>document.querySelector('.tray-slot strong').textContent==='ㅡ');
   assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅡ','ㅡ','ㅅ']);
-  await page.locator('#undo').click();assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ','ㅡ']);
+  await page.locator('#undo').click();assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ']);
+  await page.locator('#search-blocks').fill('ttm');await page.locator('#search-blocks').press('Enter');
   await page.getByRole('button',{name:'직접 배치',exact:true}).first().click();await page.locator('.board-cell[data-x="0"][data-y="14"]').click();
-  await page.locator('#search-blocks').fill('ㅡㅡㅡ');await page.locator('#search-blocks').press('Enter');assert.match(await page.locator('#message').textContent(),/사용 중인 세트/);
+  await page.locator('#search-blocks').fill('ㅡㅡㅡ');await page.locator('#search-blocks').press('Enter');await page.locator('.move-button').first().waitFor();
   assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ','ㅡ']);
   await page.getByText('파일에 저장됨',{exact:true}).waitFor();await page.reload();await page.getByText('파일에 저장됨',{exact:true}).waitFor();
   assert.deepEqual(await page.locator('.tray-slot strong').allTextContents(),['ㅅ','ㅅ','ㅡ']);

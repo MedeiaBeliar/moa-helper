@@ -4,7 +4,8 @@ import { overlayCells, completePlan, applyPartialPlan, applyReroll, isOrderIndep
 import { ScreenCapture } from './capture.js';
 import { stateFromCapture, rerollFromCapture } from './capture-state.js';
 import { emptyStatistics, recordNormalDraws, statisticsRows, statisticsView, setObservationCounts, resetStatistics, observedPercent, stageForLines, addClearedLines } from './statistics.js';
-import {TARGET_SCORES,isTargetScore,nextTarget,addScore,scoreMoves} from './targets.js';
+import {activeTargets,validateManualTargets,isTargetScore,nextTarget,addScore,scoreMoves} from './targets.js';
+import {resetGameState} from './game-state.js';
 import {validateSpawnRemaining,advanceSpawnRemaining,remainingIconOrder,editSkillIcon} from './abilities.js';
 import {normalizeBlockInput,blocksNamed,blockNameIncludes} from './block-input.js';
 import {StudioUI} from './studio.js';
@@ -146,6 +147,7 @@ function chooseThreeFromSearch() {
   state.slots=selected.map(block=>({instanceId:uid(),blockId:block.id,name:block.name,cells:clone(block.cells),used:false,drawStage:stageForLines(state.clearedLines)}));
   placement=null;hover=null;mode='paint';$('search-blocks').value='';changed();
   message(()=>(t`${names.join(' · ')} 세 조각을 선택했습니다. 배치 추천 찾기를 눌러 주세요.`));
+  return true;
 }
 function renderTray() {
   $('tray').replaceChildren(); const chosen=state.slots.filter(Boolean).length,used=state.slots.filter(s=>s?.used).length;
@@ -244,17 +246,31 @@ function saveCurrentScore(){
 $('current-score').onchange=saveCurrentScore;
 $('current-score').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();event.target.blur();}};
 $('target-enabled').onchange=()=>{if(!loaded)return;remember();state.targetEnabled=$('target-enabled').checked;targetPaused=false;changed();};
+$('add-target').onclick=()=>{
+  if(!loaded)return;const input=$('manual-target');
+  try{
+    const value=Number(input.value),targets=validateManualTargets([...new Set([...state.manualTargets,value])]);
+    input.removeAttribute('aria-invalid');input.value='';
+    if(targets.length!==state.manualTargets.length){remember();state.manualTargets=targets;changed();}
+    input.focus();
+  }catch(error){input.setAttribute('aria-invalid','true');message(()=>t(error.message),true);}
+};
+$('manual-target').onkeydown=event=>{if(event.key==='Enter'&&!event.isComposing){event.preventDefault();if(!event.repeat)$('add-target').click();}};
 $('score-plus-50').onclick=()=>{if(!loaded||state.currentScore==null)return;remember();state.currentScore=addScore(state.currentScore,50);changed();message(()=>(t('표시하지 않았던 능력 획득 50점을 보정했습니다. 표시한 능력은 자동 반영되므로 중복해서 더하지 마세요.')));};
 function renderTargetStatus(){
   if(document.activeElement!==$('current-score'))$('current-score').value=state.currentScore??'';
   $('target-enabled').checked=state.targetEnabled!==false;$('score-plus-50').disabled=state.currentScore==null||state.currentScore>=500000;
-  const next=nextTarget(state.currentScore),hit=result?.target?.hit;
-  $('target-status').textContent=hit?t`${result.target.hitStep}번까지 놓으면 ${hit.toLocaleString()}점 예상`:state.targetEnabled===false?t('고득점 우선'):state.currentScore==null?t('현재 점수를 입력하면 목표를 계산합니다.'):isTargetScore(state.currentScore)?t`${state.currentScore.toLocaleString()}점 달성${next?t` · 계속하면 다음 후보 ${next.toLocaleString()}점`:''}`:next?t`다음 후보 ${next.toLocaleString()}점 · ${(next-state.currentScore).toLocaleString()}점 남음`:t('목표 목록을 지나 고득점을 노립니다.');
-  $('target-list').textContent=TARGET_SCORES.map(s=>s.toLocaleString()).join(' · ');
+  const targets=activeTargets(state),next=nextTarget(state.currentScore,targets),hit=result?.target?.hit;
+  $('target-status').textContent=hit?t`${result.target.hitStep}번까지 놓으면 ${hit.toLocaleString()}점 예상`:!targets.length?t('고득점 우선'):state.currentScore==null?t('현재 점수를 입력하면 목표를 계산합니다.'):isTargetScore(state.currentScore,targets)?t`${state.currentScore.toLocaleString()}점 달성${next?t` · 계속하면 다음 후보 ${next.toLocaleString()}점`:''}`:next?t`다음 후보 ${next.toLocaleString()}점 · ${(next-state.currentScore).toLocaleString()}점 남음`:t('목표 목록을 지나 고득점을 노립니다.');
+  $('target-list').textContent=targets.length?targets.map(s=>s.toLocaleString()).join(' · '):t('등록된 목표가 없습니다.');
+  $('manual-targets').replaceChildren(...state.manualTargets.map(score=>{
+    const remove=button(`${score.toLocaleString()} ×`,()=>{remember();state.manualTargets=state.manualTargets.filter(value=>value!==score);changed();$('manual-target').focus();});
+    remove.setAttribute('aria-label',t`수동 목표 ${score.toLocaleString()}점 삭제`);return remove;
+  }));
 }
-function markSkillIcon(x,y){
+function markSkillIcon(x,y,kind=mode==='icon-dot'?'dot':'reroll'){
   try{
-    const {state:next,expired}=editSkillIcon(state,{x,y,kind:mode==='icon-dot'?'dot':'reroll'},{newlyAppeared:$('icon-entry').value==='new'});
+    const {state:next,expired}=editSkillIcon(state,{x,y,kind},{newlyAppeared:$('icon-entry').value==='new'});
     remember();state=next;changed();
     message(()=>(expired?t`새 능력을 표시하고 가장 오래된 ${expired.y+1}행 · ${expired.x+1}열 능력 위치를 지웠습니다.`:t('능력 위치를 저장했습니다. 줄을 지워 획득하면 보유량과 50점을 자동으로 더합니다.')));
   }catch(error){message(()=>(t(error.message)),true);}
@@ -368,6 +384,7 @@ function renderRecommendations() {
 }
 function render() {
   if(!state)return;
+  $('quick-input').checked=state.quickInput===true;
   renderLibrary();renderTray();renderBoard();renderRecommendations();renderStatistics();renderTargetStatus();$('undo').disabled=!history.length;$('statistics-undo').disabled=!history.length;
   if(document.activeElement!==$('cleared-lines'))$('cleared-lines').value=state.clearedLines??'';
   if(document.activeElement!==$('skill-spawn-remaining'))$('skill-spawn-remaining').value=state.skillSpawnRemaining??'';
@@ -457,7 +474,7 @@ $('block-form').addEventListener('submit',event=>{
 $('delete-block').onclick=()=>{remember();state.blocks=state.blocks.filter(b=>b.id!==editorId);$('block-dialog').close();changed({search:false});message(()=>(t('목록에서 삭제했습니다. 되돌리기로 복구할 수 있습니다.')));};
 function resetTray(){remember();state.slots=[null,null,null];placement=null;hover=null;mode='paint';changed();message(()=>(t('게임에 새로 나온 조각 3개를 선택하세요.')));}
 function solveBoard() {
-  if(!loaded||state.slots.some(s=>!s)||state.slots.every(s=>s.used))return;
+  if(!loaded||busy||state.slots.some(s=>!s)||state.slots.every(s=>s.used))return;
   targetPaused=false;
   const recorded=recordNormalDraws(state);if(recorded!==state){state=recorded;dirty();}
   invalidate();placement=null;hover=null;mode='paint';busy=true;const id=generation;
@@ -478,7 +495,7 @@ function solveBoard() {
   };
   worker.onerror=()=>{if(id!==generation)return;invalidate();render();message(()=>(t('탐색 중 오류가 발생했습니다. 다시 시도해 주세요.')),true);};
   searchTimer=setTimeout(()=>finish(latest?{result:{...latest,timedOut:true,duration:wallLimit}}:{error:t('1초 제한에 도달했습니다. 보드를 확인한 뒤 다시 계산해 주세요.')}),wallLimit);
-  worker.postMessage({id,input:{board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:state.statistics,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}}});render();
+  worker.postMessage({id,input:{board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:state.statistics,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,manualTargets:state.manualTargets,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}}});render();
 }
 function finishTarget(){
   try{
@@ -562,6 +579,13 @@ $('mode-icon-reroll').onclick=()=>setMode(mode==='icon-reroll'?'paint':'icon-rer
 $('clear-icons').onclick=()=>{if(!loaded||!state.skillIcons?.length)return;remember();state.skillIcons=[];state.skillIconOrder=[];changed();message(()=>(t('표시한 능력 위치를 모두 지웠습니다. 보유 스킬과 점수는 그대로입니다.')));};
 $('finish-target').onclick=finishTarget;
 $('clear-board').onclick=()=>{remember();state.board=Array(state.rows).fill(0);placement=null;hover=null;changed();message(()=>(t('보드를 비웠습니다. 잘못 비웠다면 되돌리기를 누르세요.')));};
+$('reset-game').onclick=()=>{
+  if(!loaded)return;remember();state=resetGameState(state);placement=null;hover=null;drag=null;mode='paint';
+  studio.stopPlayback();studio.clearMotion();$('search-blocks').value='';$('reroll-name').value='';
+  capture.resume({reset:true});
+  for(const id of ['current-score','cleared-lines','skill-spawn-remaining'])$(id).removeAttribute('aria-invalid');
+  changed();message(()=>t('게임을 초기화했습니다. 보관함·통계·설정은 유지됩니다. 되돌리기로 복구할 수 있습니다.'));
+};
 $('undo').onclick=()=>{if(!history.length)return;state=history.pop();placement=null;hover=null;mode='paint';changed();message(()=>(t('이전 상태로 되돌렸습니다.')));};
 $('reset-tray').onclick=resetTray;$('next-set').onclick=resetTray;$('solve').onclick=solveBoard;$('complete-plan').onclick=finishPlan;$('pip').onclick=openPip;$('retry-save').onclick=save;
 $('apply-reroll').onclick=()=>finishReroll();$('reroll-create').onclick=()=>openEditor();
@@ -587,20 +611,33 @@ for(const key of ['dot','reroll'])$(`skill-${key}`).onchange=()=>{
 };
 $('show-all').onclick=()=>{preview=-2;placement=null;hover=null;mode='paint';renderBoard();renderTray();renderRecommendations();renderPip();};
 $('search-blocks').oninput=renderLibrary;
-function bindNameEnter(input,submit){
-  let composing=false,pending=false;
-  const flush=()=>{if(pending&&!composing){pending=false;submit();}};
+function bindNameEnter(input,submit,onInput=()=>{}){
+  let composing=false,pending=false,timer;
+  const flush=()=>{if(composing)return;if(pending){pending=false;submit();}else onInput();};
+  const schedule=()=>{clearTimeout(timer);timer=setTimeout(flush,0);};
   input.addEventListener('compositionstart',()=>{composing=true;});
   // Final input follows compositionend. Read the committed Hangul, once.
-  input.addEventListener('compositionend',()=>{composing=false;setTimeout(flush,0);});
+  input.addEventListener('compositionend',()=>{composing=false;schedule();});
+  input.addEventListener('input',event=>{if(!composing&&!event.isComposing)schedule();});
   input.addEventListener('keydown',event=>{
-    if(event.key!=='Enter'||event.repeat)return;
-    if(event.isComposing||composing||event.keyCode===229){pending=true;setTimeout(flush,0);return;}
-    event.preventDefault();pending=false;submit();
+    if(event.key!=='Enter')return;
+    if(event.repeat){event.preventDefault();return;}
+    if(event.isComposing||composing||event.keyCode===229){pending=true;schedule();return;}
+    event.preventDefault();clearTimeout(timer);pending=false;submit();
   });
-  input.addEventListener('blur',()=>{pending=false;});
+  input.addEventListener('blur',()=>{pending=false;clearTimeout(timer);});
 }
-bindNameEnter($('search-blocks'),chooseThreeFromSearch);
+function quickSelect(){
+  if(!loaded||!state.quickInput||state.slots.every(slot=>slot&&!slot.used))return;
+  if(Array.from(normalizeBlockInput($('search-blocks').value)).length===3&&chooseThreeFromSearch())solveBoard();
+}
+function submitSearch(){
+  if(!loaded)return;
+  if(!$('search-blocks').value.trim()||state.slots.every(Boolean)&&state.slots.some(slot=>!slot.used))solveBoard();
+  else if(chooseThreeFromSearch()&&state.quickInput)solveBoard();
+}
+$('quick-input').onchange=()=>{if(!loaded)return;remember();state.quickInput=$('quick-input').checked;changed({search:false});quickSelect();};
+bindNameEnter($('search-blocks'),submitSearch,quickSelect);
 bindNameEnter($('reroll-name'),rerollByName);
 $('resize-board').onclick=()=>{const cols=+$('cols').value,rows=+$('rows').value;if(!Number.isInteger(cols)||cols<2||cols>20||!Number.isInteger(rows)||rows<2||rows>40){message(()=>(t('보드 크기는 2–20열, 2–40행으로 입력하세요.')),true);return;}remember();state.board=Array.from({length:rows},(_,i)=>(state.board[i]||0)&((1<<cols)-1));state.cols=cols;state.rows=rows;state.skillIcons=(state.skillIcons||[]).filter(icon=>icon.x<cols&&icon.y<rows);state.skillIconOrder=remainingIconOrder(state);placement=null;hover=null;changed();message(()=>(t('보드 크기를 적용했습니다. 잘려 나간 칸은 되돌리기로 복구할 수 있습니다.')));};
 for(const id of ['rotate','reflect'])$(id).onchange=()=>{remember();state.options[id]=$(id).checked;placement=null;hover=null;changed();};
@@ -625,9 +662,31 @@ $('import-blocks').onchange=async event=>{
     if(state.blocks.length+additions.length>500)throw new Error(t('블록은 최대 500개까지 저장할 수 있습니다.'));remember();state.blocks.push(...additions);changed({search:false});message(()=>(t`${additions.length}개 블록을 추가했습니다. 같은 모양은 건너뛰었습니다.`));
   }catch(error){message(()=>(t(error.message)),true);}finally{event.target.value='';}
 };
+// Resolve the cell at keypress time so scrolling or a resized board cannot leave
+// a stale hover coordinate behind. This also works over recommendation labels.
+let pointer=null;
+document.addEventListener('pointermove',event=>{pointer={x:event.clientX,y:event.clientY};},{passive:true});
+document.addEventListener('pointerleave',()=>{pointer=null;});
+window.addEventListener('blur',()=>{pointer=null;});
 document.addEventListener('keydown',event=>{
-  if(document.querySelector('dialog[open]')||event.target.matches('input,select,textarea')||event.ctrlKey||event.metaKey)return;
+  if(!loaded||event.defaultPrevented||event.isComposing||event.keyCode===229||document.querySelector('dialog[open]')||event.target.closest('input,select,textarea,[contenteditable]:not([contenteditable="false"]),[role="textbox"]')||event.ctrlKey||event.metaKey||event.altKey)return;
+  if(event.repeat){if(event.key==='Enter'&&event.target.closest('.board-cell'))event.preventDefault();return;}
+  if(/^[a-z]$/i.test(event.key)&&!(placement&&/^[rf]$/i.test(event.key))){
+    event.preventDefault();if(document.body.classList.contains('focus-mode'))studio.focus();
+    if(activeScreen==='statistics')switchInput(inputMode);
+    const input=$('search-blocks');input.focus();input.setRangeText(event.key,input.value.length,input.value.length,'end');
+    input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:event.key}));return;
+  }
   if(activeScreen==='statistics'){if(event.key==='Escape')switchInput(inputMode);return;}
+  if(['1','2','`'].includes(event.key)&&pointer){
+    const cell=document.elementFromPoint(pointer.x,pointer.y)?.closest('#board-grid .board-cell');if(!cell)return;
+    event.preventDefault();const x=+cell.dataset.x,y=+cell.dataset.y,existing=state.skillIcons.find(icon=>icon.x===x&&icon.y===y);
+    if(event.key==='`'){if(existing)markSkillIcon(x,y,existing.kind);}
+    else{const kind=event.key==='1'?'dot':'reroll';if(existing?.kind!==kind)markSkillIcon(x,y,kind);}
+    return;
+  }
+  // Keep native Enter activation for other buttons, links and disclosures.
+  if(event.key==='Enter'&&(!event.target.closest('button,a,summary,[role="button"]')||event.target.closest('.board-cell'))){event.preventDefault();solveBoard();return;}
   if(event.key==='Escape')setMode('paint');if(event.key.toLowerCase()==='r')transformPlacement();if(event.key.toLowerCase()==='f')transformPlacement(true);
 });
 window.addEventListener('beforeunload',event=>{if(revision!==savedRevision){event.preventDefault();event.returnValue='';}});
@@ -635,7 +694,7 @@ async function boot() {
   document.querySelector('main').inert=true;$('new-block').disabled=true;
   try {
     const response=await fetch('/api/state');const data=await response.json();if(!response.ok)throw new Error(data.error||t('저장 파일을 읽지 못했습니다.'));state=data;
-    stagePersistenceSupported=Object.hasOwn(data,'clearedLines')&&Object.hasOwn(data,'currentScore')&&Object.hasOwn(data,'targetEnabled')&&Array.isArray(data.skillIcons)&&Array.isArray(data.skillIconOrder)&&Object.hasOwn(data,'skillSpawnRemaining')&&data.options?.strategyVersion===3&&data.captureStatsVersion===1;
+    stagePersistenceSupported=Object.hasOwn(data,'clearedLines')&&Object.hasOwn(data,'currentScore')&&Object.hasOwn(data,'targetEnabled')&&Array.isArray(data.manualTargets)&&typeof data.quickInput==='boolean'&&Array.isArray(data.skillIcons)&&Array.isArray(data.skillIconOrder)&&Object.hasOwn(data,'skillSpawnRemaining')&&data.options?.strategyVersion===3&&data.captureStatsVersion===1;
     let draft;try{draft=JSON.parse(localStorage.getItem(DRAFT));}catch{}
     if(draft&&!stagePersistenceSupported){state=draft;message(()=>(t('임시 보관한 데이터를 복구했습니다. 통계와 알고리즘 설정 저장을 위해 서버를 다시 시작해 주세요.')),true);}
     else if(draft){const check=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});if(check.ok){state=draft;try{localStorage.removeItem(DRAFT);}catch{}message(()=>(t('이전에 저장하지 못한 변경을 복구해 파일에 저장했습니다.')));}else message(()=>(t('임시 데이터의 형식이 맞지 않아 기존 저장 파일을 불러왔습니다.')),true);}
@@ -643,7 +702,7 @@ async function boot() {
     state.captureStatsVersion=1;state.skills=skillCounts(state.skills);
     state.statistics??=emptyStatistics();
     state.clearedLines??=null;
-    state.currentScore??=null;state.targetEnabled=state.targetEnabled!==false;state.skillIcons??=[];state.skillIconOrder=remainingIconOrder(state);state.skillSpawnRemaining=validateSpawnRemaining(state.skillSpawnRemaining);
+    state.currentScore??=null;state.targetEnabled=state.targetEnabled!==false;state.manualTargets=validateManualTargets(state.manualTargets);state.quickInput=state.quickInput===true;state.skillIcons??=[];state.skillIconOrder=remainingIconOrder(state);state.skillSpawnRemaining=validateSpawnRemaining(state.skillSpawnRemaining);
     // Also correct an old running server's response or a recovered browser draft.
     const priorOptions=state.options||{},correctedGravity=priorOptions.gravity!==false;
     const upgradedStrategy=priorOptions.strategyVersion!==3||priorOptions.solverProfile!=='fast'||priorOptions.timeLimit!==850;

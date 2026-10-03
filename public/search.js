@@ -1,5 +1,5 @@
 import {variants, actionScore, skillCounts} from './solver.js';
-import {TARGET_SCORES,nextTarget} from './targets.js';
+import {activeTargets,nextTarget} from './targets.js';
 
 // Placements depend on the shape and board dimensions, never on a saved game.
 // Keeping masks here removes coordinate arrays and cell-by-cell work from the
@@ -76,8 +76,9 @@ export function searchPlacements(input,{deadline=performance.now()+2000,width=10
   const scoreWeight=Number.isFinite(options.scoreWeight)?options.scoreWeight:1;
   const dotPenalty=Number.isFinite(options.dotPenalty)?options.dotPenalty:40;
   const quality=evaluate??(current=>defaultQuality(current,cols));
-  const targetMode=input.targetEnabled===true&&Number.isSafeInteger(input.currentScore)&&input.currentScore>=0&&input.currentScore<=500000;
-  const targetSet=targetMode?new Set(TARGET_SCORES):null,upcoming=targetMode?nextTarget(input.currentScore):null;
+  const targets=activeTargets({...input,targetEnabled:input.targetEnabled===true});
+  const targetMode=targets.length>0&&Number.isSafeInteger(input.currentScore)&&input.currentScore>=0&&input.currentScore<=500000;
+  const targetSet=targetMode?new Set(targets):null,upcoming=targetMode?nextTarget(input.currentScore,targets):null;
   const approaching=upcoming!==null&&upcoming-input.currentScore<=1800;
   const prepared=pieces.map(p=>compilePlacements(p.cells,cols,board.length,options));
   const dots=skills.dot?compilePlacements([[0,0]],cols,board.length,{rotate:false,reflect:false}):[];

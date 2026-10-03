@@ -12,7 +12,9 @@ For the supplied library, select **Add all default blocks** or import [the examp
 
 **Merge equivalent shapes** consolidates existing duplicate entries. The identity with the highest combined normal/reroll count survives; ties keep the first entry in library order. Normal and reroll totals are added separately, including each stage. An active piece keeps its orientation, instance ID, used state, and pending observation marker. Undo can restore a merge made through the interface.
 
-Enter three one-character names in the search field and press Enter to select a complete set. Repeated names fill separate slots.
+Enter three one-character names in the search field and press Enter to select a complete set. Repeated names fill separate slots. When the search field is empty or all three slots are registered, Enter finds a placement plan for the current set. Use **Reset selection** before entering a replacement set.
+
+With no input field focused, typing an alphabetic key focuses block search and inserts that key. **Quick input** selects and searches as soon as three valid names are entered, without Enter. It waits for Hangul composition to finish and remembers its setting after a restart. Unknown or ambiguous names require correction before a plan can run.
 
 | Input | Selected names |
 | --- | --- |
@@ -28,6 +30,8 @@ Compound consonants, vowels, and composed syllables are split into basic letters
 Click or drag to mark occupied cells. Click again to clear them, or select the eraser. This editor copies the current game state, so filling a row manually does not immediately clear it. Rows clear when a piece or a recommended plan is committed.
 
 The default board is 10 columns × 16 rows. **Rules and placement settings** contains dimensions and rotation/reflection settings. Only complete horizontal rows clear; other cells stay in place.
+
+**Reset game** clears the board, selected pieces, score, cleared-line count, held skills, ability markers and their arrival order. The spawn countdown returns to seven. The library, observations, custom targets and preferences are retained. **Undo** restores the previous game in one step.
 
 ## Plans and completion
 
@@ -87,6 +91,8 @@ Rows cleared by separate actions do not combine into one bonus. Displayed score 
 
 The search prioritizes completing the set and retaining useful space. It seeks an exact target or a safe approach without overshooting, then falls back to a scoring plan when needed. If a target occurs before the end, **Apply through target** commits that prefix and retains the remaining pieces. It is offered only when the rest of the set has a legal continuation and the stopping point leaves fewer than seven skills.
 
+Open **Target list** to add custom targets. Enter a whole number from 1 to 500,000 and press Enter or **Add**; repeat for additional targets. Up to 100 custom targets are saved, with duplicates removed. They remain active when **Auto targets** is off. With auto targets on, both lists participate in the same search. Each custom target has a remove button; **Active targets** shows the combined list in ascending order.
+
 ## Draw statistics
 
 **Draw statistics** opens a separate screen with normal draws, rerolls, and combined observations for all stages or a selected stage. **Back to play** returns to the previous manual or capture screen, preserving the current plan and live sharing session. Browser Back and Forward also navigate between screens. Filters remain in place while switching screens.
@@ -118,12 +124,18 @@ At the start of a new game, set score and cleared lines to zero. Clearing the bo
 | Key | Action |
 | --- | --- |
 | `/` | Focus block search |
+| `A`–`Z` | Focus block search and insert the key when no input is focused |
+| Enter | Find a plan from an empty search field, a registered set, or the playfield |
+| `1` / `2` | Mark Dot / Reroll at the board cell under the pointer |
+| Backtick | Remove the ability marker under the pointer |
 | `Ctrl+K` / `⌘K` | Open the command menu |
 | `R` / `F` | Rotate / reflect during manual placement |
 | `Esc` | Cancel placement, exit focus mode, or return from statistics |
 | Arrow keys / Space | Navigate / toggle board and editor cells |
 
 The operating system's reduced-motion preference disables decorative transitions.
+
+Ability shortcuts edit board markers, leaving held inventory and occupied cells unchanged. They follow the selected **Ability to add** arrival-order setting. Shortcuts are ignored in other input fields and dialogs; Enter keeps its normal behavior on action buttons. During manual placement, R and F retain their transformation actions.
 
 ## Troubleshooting
 

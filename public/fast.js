@@ -1,7 +1,7 @@
 import {findSurvival,solveFallback,skillCounts,place,actionScore} from './solver.js';
 import {searchPlacements,compilePlacements,countLegalPlacements} from './search.js';
 import {createEvaluator,preparePolicyCatalogue,mobilityReport,scenarioWeights,makeScenarios} from './policy.js';
-import {TARGET_SCORES,nextTarget,targetPath,scoreMoves} from './targets.js';
+import {activeTargets,nextTarget,targetPath,scoreMoves} from './targets.js';
 
 // Leave time for worker startup, message delivery and painting; a host-side
 // watchdog owns the hard wall limit.
@@ -9,18 +9,19 @@ export function solveFast(input,{onProgress}={}){
   const started=performance.now(),budget=Math.max(20,Math.min(850,input.options?.timeLimit??850)),deadline=started+budget;
   const options={rotate:true,reflect:true,gravity:false,...input.options},skills=skillCounts(input.skills),mustSpend=skills.dot+skills.reroll===7;
   const evaluate=createEvaluator(input.cols),elapsed=()=>Math.round(performance.now()-started);
-  const targetEnabled=input.targetEnabled===true,targetMode=targetEnabled&&Number.isSafeInteger(input.currentScore)&&input.currentScore>=0&&input.currentScore<=500000;
-  const upcoming=targetMode?nextTarget(input.currentScore):null,approaching=upcoming!==null&&upcoming-input.currentScore<=1800;
+  const targets=activeTargets({...input,targetEnabled:input.targetEnabled===true});
+  const targetEnabled=targets.length>0,targetMode=targetEnabled&&Number.isSafeInteger(input.currentScore)&&input.currentScore>=0&&input.currentScore<=500000;
+  const upcoming=targetMode?nextTarget(input.currentScore,targets):null,approaching=upcoming!==null&&upcoming-input.currentScore<=1800;
   let availableCells=input.pieces.reduce((sum,p)=>sum+p.cells.length,skills.dot);
   for(let row of input.board)while(row){availableCells++;row&=row-1;}
   const scoreBound=input.pieces.reduce((sum,p)=>sum+p.cells.length,skills.dot)+300*Math.floor(availableCells/input.cols)**2+50*(input.skillIcons?.length||0);
-  const targetSearch=targetMode&&(approaching||TARGET_SCORES.some(score=>score>input.currentScore&&score<=input.currentScore+scoreBound));
+  const targetSearch=targetMode&&(approaching||targets.some(score=>score>input.currentScore&&score<=input.currentScore+scoreBound));
   const targetCache=new WeakMap(),targetChoices=new Map();
-  const pathOf=c=>{if(!targetCache.has(c))targetCache.set(c,targetPath(input.currentScore,c.moves));return targetCache.get(c);};
+  const pathOf=c=>{if(!targetCache.has(c))targetCache.set(c,targetPath(input.currentScore,c.moves,targets));return targetCache.get(c);};
   const goalClass=c=>{if(!targetMode)return 0;const path=pathOf(c);return path.hit!==null?2:approaching&&path.after>input.currentScore&&path.after<=upcoming?1:0;};
   const withTarget=result=>{
     if(!targetEnabled)return result;
-    const path=targetPath(input.currentScore,result.moves);
+    const path=targetPath(input.currentScore,result.moves,targets);
     const status=!targetMode?'unknown':result.complete&&path.hit!==null?'hit':upcoming===null?'complete':result.complete&&approaching&&path.after>input.currentScore&&path.after<=upcoming?'approach':'fallback';
     return {...result,target:{enabled:true,currentScore:input.currentScore??null,status,...path,
       hit:result.complete?path.hit:null,hitStep:result.complete?path.hitStep:null}};
@@ -97,7 +98,7 @@ export function solveFast(input,{onProgress}={}){
     if(targetMode){rememberTarget(c);const chosen=selectGoal(best);if(previous!==best||latest?.moves!==chosen.moves)publish(chosen);}
     else if(previous!==best)publish(c);
   };
-  const search=searchPlacements({...input,targetEnabled:targetSearch,options},{deadline:Math.min(deadline-50,started+budget*(skills.dot ? .76 : .64)),width:skills.dot?36:64,evaluate,
+  const search=searchPlacements({...input,targetEnabled:targetSearch&&input.targetEnabled===true,manualTargets:targetSearch?input.manualTargets:[],options},{deadline:Math.min(deadline-50,started+budget*(skills.dot ? .76 : .64)),width:skills.dot?36:64,evaluate,
     onCandidate:c=>{if(!best||performance.now()<deadline-35)accept(c);}});
   nodes+=search.nodes;
   const pool=search.candidates.slice();if(best)pool.push(best);

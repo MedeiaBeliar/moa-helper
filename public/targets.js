@@ -3,9 +3,16 @@ export const TARGET_SCORES=Object.freeze([...new Set([
   100000,111111,120200,123456,
   150000,200000,222222,250000,300000,333333,350000,400000,444444,450000,211000,211211
 ])].sort((a,b)=>a-b));
-const targetSet=new Set(TARGET_SCORES);
-export const isTargetScore=score=>targetSet.has(score);
-export const nextTarget=score=>Number.isInteger(score)?TARGET_SCORES.find(value=>value>score)??null:null;
+export function validateManualTargets(values=[]){
+  if(!Array.isArray(values)||values.length>100||values.some(value=>!Number.isInteger(value)||value<1||value>SCORE_CAP))
+    throw new Error('수동 목표는 1~500,000 사이의 정수로 최대 100개까지 추가할 수 있습니다.');
+  return [...new Set(values)].sort((a,b)=>a-b);
+}
+export function activeTargets({targetEnabled=true,manualTargets=[]}={}){
+  return [...new Set([...(targetEnabled?TARGET_SCORES:[]),...validateManualTargets(manualTargets)])].sort((a,b)=>a-b);
+}
+export const isTargetScore=(score,targets=TARGET_SCORES)=>targets.includes(score);
+export const nextTarget=(score,targets=TARGET_SCORES)=>Number.isInteger(score)?targets.find(value=>value>score)??null:null;
 export function addScore(score,delta){
   if(!Number.isSafeInteger(delta)||delta<0)throw new Error('추가 점수가 올바르지 않습니다.');
   if(score==null)return null;
@@ -51,13 +58,13 @@ export function scoreMoves(currentScore,moves,{skillIcons=[],skills={dot:0,rerol
   });
   return {moves:scored,after,icons,acquiredCount,held,skillsAfter,placementScore,lineScore,acquisitionScore,score:placementScore+lineScore+acquisitionScore};
 }
-export function targetPath(currentScore,moves){
+export function targetPath(currentScore,moves,targets=TARGET_SCORES){
   let after=currentScore??null,hit=null,hitStep=null;
   for(let index=0;index<moves.length;index++){
     const move=moves[index];after=addScore(after,move.score??((move.kind==='dot'?1:move.cells.length)+300*move.cleared.length**2+(move.acquisitionScore||0)));
     // Only a new exact score with available skill capacity is a stopping point.
-    if(hit===null&&after!==currentScore&&isTargetScore(after)&&(move.heldSkills??0)<7){hit=after;hitStep=index+1;}
+    if(hit===null&&after!==currentScore&&isTargetScore(after,targets)&&(move.heldSkills??0)<7){hit=after;hitStep=index+1;}
   }
-  const next=nextTarget(after);
+  const next=nextTarget(after,targets);
   return {hit,hitStep,after,next,distance:next===null||after===null?null:next-after};
 }

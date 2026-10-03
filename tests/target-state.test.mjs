@@ -5,9 +5,39 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {initialState,validateState,createStore} from '../storage.mjs';
 import {completePlan,applyPartialPlan,applyTargetPlan,applyReroll,isOrderIndependent} from '../public/plan.js';
-import {SCORE_CAP,TARGET_SCORES,isTargetScore,nextTarget,addScore,validateSkillIcons,collectSkillIcons,scoreMoves,targetPath} from '../public/targets.js';
+import {SCORE_CAP,TARGET_SCORES,isTargetScore,nextTarget,addScore,validateSkillIcons,collectSkillIcons,scoreMoves,targetPath,activeTargets,validateManualTargets} from '../public/targets.js';
+import {resetGameState} from '../public/game-state.js';
 
 const unit=[[0,0]];
+test('custom targets persist independently, combine without duplicates and validate before saving',()=>{
+  const clean=validateState({...initialState(),targetEnabled:false,manualTargets:[500000,321,100000,321],quickInput:true});
+  assert.deepEqual(clean.manualTargets,[321,100000,500000]);assert.equal(clean.quickInput,true);
+  assert.deepEqual(activeTargets(clean),clean.manualTargets);
+  assert.deepEqual(activeTargets({...clean,targetEnabled:true}),[321,...TARGET_SCORES,500000]);
+  assert.equal(nextTarget(100001,activeTargets(clean)),500000);
+  assert.deepEqual(validateManualTargets(),[]);
+  for(const manualTargets of [null,'123',[0],[-1],[1.1],['123'],[500001],Array(101).fill(123)])assert.throws(()=>validateState({...clean,manualTargets}));
+  assert.throws(()=>validateState({...clean,quickInput:'yes'}));
+  const legacy={...clean};delete legacy.manualTargets;delete legacy.quickInput;
+  assert.deepEqual(validateState(legacy).manualTargets,[]);assert.equal(validateState(legacy).quickInput,false);
+});
+
+test('custom target confirmation replays the prefix and rejects a removed target',()=>{
+  const {state,result}=fixture({currentScore:110759});state.targetEnabled=false;state.manualTargets=[111110,123456];result.target.hit=111110;
+  const next=applyTargetPlan(state,result);assert.equal(next.currentScore,111110);assert.equal(next.slots.filter(s=>s.used).length,1);
+  assert.throws(()=>applyTargetPlan({...state,manualTargets:[]},result),/목표 점수/);
+});
+
+test('game reset clears the entire run without altering the library, statistics or preferences',()=>{
+  const state={...fixture().state,clearedLines:103,skills:{dot:3,reroll:2},skillSpawnRemaining:2,skillIconOrder:['0,0'],manualTargets:[111110],quickInput:true};
+  state.statistics={entries:[{blockId:'unit',name:'·',normal:17,reroll:2}]};const before=structuredClone(state);
+  const reset=resetGameState(state);assert.deepEqual(state,before);
+  assert.deepEqual(reset.board,Array(state.rows).fill(0));assert.equal(reset.currentScore,0);assert.equal(reset.clearedLines,0);
+  assert.deepEqual(reset.skills,{dot:0,reroll:0});assert.deepEqual(reset.slots,[null,null,null]);
+  assert.deepEqual(reset.skillIcons,[]);assert.deepEqual(reset.skillIconOrder,[]);assert.equal(reset.skillSpawnRemaining,7);
+  for(const key of ['blocks','statistics','options','cols','rows','manualTargets','targetEnabled','quickInput'])assert.deepEqual(reset[key],state[key]);
+  validateState(reset);
+});
 function fixture({currentScore=110760,kind='dot'}={}){
   const state={...initialState(),cols:4,rows:3,board:[7,0,0],currentScore,
     skillIcons:[{x:0,y:0,kind},{x:2,y:2,kind:'reroll'}],

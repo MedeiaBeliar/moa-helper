@@ -3,10 +3,10 @@ import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { normalize, skillCounts } from './public/solver.js';
 import { emptyStatistics } from './public/statistics.js';
-import {validateSkillIcons} from './public/targets.js';
+import {validateSkillIcons,validateManualTargets} from './public/targets.js';
 import {validateSpawnRemaining,validateIconOrder} from './public/abilities.js';
 
-export const initialState = () => ({version:1, captureStatsVersion:1, blocks:[], cols:10, rows:16, board:Array(16).fill(0), clearedLines:0, currentScore:0, targetEnabled:true, skillIcons:[], skillIconOrder:[], skillSpawnRemaining:7, slots:[null,null,null], skills:{dot:0,reroll:0}, statistics:emptyStatistics(), options:{solverProfile:'fast',rotate:true,reflect:true,gravity:false,timeLimit:850,strategyVersion:3}});
+export const initialState = () => ({version:1, captureStatsVersion:1, blocks:[], cols:10, rows:16, board:Array(16).fill(0), clearedLines:0, currentScore:0, targetEnabled:true, manualTargets:[], quickInput:false, skillIcons:[], skillIconOrder:[], skillSpawnRemaining:7, slots:[null,null,null], skills:{dot:0,reroll:0}, statistics:emptyStatistics(), options:{solverProfile:'fast',rotate:true,reflect:true,gravity:false,timeLimit:850,strategyVersion:3}});
 function cellsValid(cells) {
   if (!Array.isArray(cells) || !cells.length || cells.length>100 || cells.some(c=>!Array.isArray(c)||c.length!==2||c.some(n=>!Number.isInteger(n)||n<0||n>=10))) throw new Error('블록 모양은 10×10 안에 1칸 이상이어야 합니다.');
   return normalize(cells);
@@ -41,6 +41,8 @@ export function validateState(input) {
   const currentScore=input.currentScore??null;
   if(currentScore!==null&&(!Number.isInteger(currentScore)||currentScore<0||currentScore>500000))throw new Error('현재 점수는 0~500,000 사이의 정수 또는 미상으로 입력하세요.');
   if(input.targetEnabled!==undefined&&typeof input.targetEnabled!=='boolean')throw new Error('목표 점수 사용 설정이 올바르지 않습니다.');
+  const manualTargets=validateManualTargets(input.manualTargets);
+  if(input.quickInput!==undefined&&typeof input.quickInput!=='boolean')throw new Error('빠른 입력 설정이 올바르지 않습니다.');
   const clearedLines=Object.hasOwn(input,'clearedLines')?input.clearedLines:null;
   if(clearedLines!==null&&(!Number.isSafeInteger(clearedLines)||clearedLines<0))throw new Error('누적 제거 줄 수는 0 이상의 정수 또는 미상이어야 합니다.');
   if(!Number.isInteger(cols)||cols<2||cols>20||!Number.isInteger(rows)||rows<2||rows>40) throw new Error('보드는 2–20열, 2–40행이어야 합니다.');
@@ -68,7 +70,7 @@ export function validateState(input) {
   const o=input.options||{};
   const skillIcons=validateSkillIcons(input.skillIcons,cols,rows),skillIconOrder=validateIconOrder(input.skillIconOrder,skillIcons),skillSpawnRemaining=validateSpawnRemaining(input.skillSpawnRemaining);
   // Keep the user's board and transforms, retiring slower profiles and falling rows.
-  return {version:1,captureStatsVersion:1,blocks,cols,rows,board:input.board.slice(),clearedLines,currentScore,targetEnabled:input.targetEnabled!==false,skillIcons,skillIconOrder,skillSpawnRemaining,slots,skills:skillCounts(input.skills),statistics:statisticsValid(input.statistics),options:{solverProfile:'fast',rotate:o.rotate!==false,reflect:o.reflect!==false,gravity:false,timeLimit:850,strategyVersion:3}};
+  return {version:1,captureStatsVersion:1,blocks,cols,rows,board:input.board.slice(),clearedLines,currentScore,targetEnabled:input.targetEnabled!==false,manualTargets,quickInput:input.quickInput===true,skillIcons,skillIconOrder,skillSpawnRemaining,slots,skills:skillCounts(input.skills),statistics:statisticsValid(input.statistics),options:{solverProfile:'fast',rotate:o.rotate!==false,reflect:o.reflect!==false,gravity:false,timeLimit:850,strategyVersion:3}};
 }
 export function createStore(directory) {
   const filename=path.join(directory,'state.json');

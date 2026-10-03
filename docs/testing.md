@@ -18,6 +18,8 @@ On Linux, use `npx playwright install --with-deps chromium` if system libraries 
 
 Browser coverage includes manual placement, Hangul input and IME composition, inline statistics, screen sharing, clipboard images, stage records, worker deadlines, exact-score targets, playback, focus mode, and layouts from 320px to desktop. Picture-in-Picture is exercised when the browser exposes that API.
 
+The keyboard suite checks automatic search focus, Enter behavior, quick input after IME confirmation, cursor-based ability markers, and isolation from other form fields and dialogs. It also exercises whole-game reset and undo, custom-target persistence, and a real solver result confirmed with auto targets disabled. Target controls are checked in English and at mobile widths.
+
 Statistics navigation checks preserve the current plan, filters, and live video across view changes and browser history. Recognition regressions include the reported blue-bar pixels, three- and five-cell bars at several scales, and genuinely disconnected shapes.
 
 Localization checks cover Korean/English switching, reload and cross-tab persistence, dialog validation, keyboard commands, and English layouts. They verify that language changes preserve plans and observations and do not trigger another capture or recognition pass. Unit checks verify translated placeholders and literal player-defined names.

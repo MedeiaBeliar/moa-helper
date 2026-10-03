@@ -173,7 +173,7 @@ export class ScreenCapture {
     }catch(error){this.status(()=>(t(error.message)),true);}
     this.draw();
   }
-  resume(){this.latest=null;this.pendingReroll=false;this.accepted=false;this.status(()=>(t('배치를 반영했습니다. 다음 조각이 나오면 인식 버튼을 누르세요.')));this.draw();}
+  resume({reset=false}={}){this.latest=null;this.pendingReroll=false;this.accepted=false;this.status(()=>reset?t('새 게임의 화면을 준비한 뒤 인식 버튼을 누르세요.'):t('배치를 반영했습니다. 다음 조각이 나오면 인식 버튼을 누르세요.'));this.draw();}
   point(event){const rect=this.canvas.getBoundingClientRect();return {x:Math.max(0,Math.min(this.canvas.width,(event.clientX-rect.left)*this.canvas.width/rect.width)),y:Math.max(0,Math.min(this.canvas.height,(event.clientY-rect.top)*this.canvas.height/rect.height))};}
   dragRect(){const {start,end}=this.drag;return {x:Math.round(Math.min(start.x,end.x)),y:Math.round(Math.min(start.y,end.y)),w:Math.round(Math.abs(end.x-start.x)),h:Math.round(Math.abs(end.y-start.y))};}
   draw(){

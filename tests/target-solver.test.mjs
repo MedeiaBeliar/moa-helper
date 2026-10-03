@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {solveFast} from '../public/fast.js';
 import {searchPlacements} from '../public/search.js';
 import {place} from '../public/solver.js';
-import {scoreMoves,targetPath} from '../public/targets.js';
+import {scoreMoves,targetPath,activeTargets} from '../public/targets.js';
 
 const unit=[[0,0]],domino=[[0,0],[1,0]],vertical=[[0,0],[0,1]],square=[[0,0],[1,0],[0,1],[1,1]];
 function source(board,cols,shapes,currentScore,extra={}){
@@ -23,7 +23,7 @@ function verify(input,result){
   assert.ok(dots<=input.skills.dot,'newly acquired skills are not speculated into the current plan');
   if(result.complete){assert.equal(used.size,input.pieces.length);assert.ok(replay.held<7);}
   if(result.target?.status==='hit'){
-    const path=targetPath(input.currentScore,replay.moves);assert.equal(result.target.hit,path.hit);assert.equal(result.target.hitStep,path.hitStep);
+    const path=targetPath(input.currentScore,replay.moves,activeTargets(input));assert.equal(result.target.hit,path.hit);assert.equal(result.target.hitStep,path.hitStep);
     assert.ok(replay.moves[path.hitStep-1].heldSkills<7);
   }
   return replay;
@@ -34,6 +34,16 @@ test('a target prefix is chosen while retaining a legal plan for all three piece
   const result=solveFast(input);verify(input,result);
   assert.equal(result.complete,true);assert.equal(result.target.status,'hit');assert.equal(result.target.hit,111111);
   assert.equal(result.target.hitStep,1);assert.equal(result.moves[0].score,301);
+});
+
+test('manual-only and combined target lists participate in safe prefix search',()=>{
+  for(const targetEnabled of [false,true]){
+    const input=source([1,1],2,[vertical,unit,unit],476,{targetEnabled,manualTargets:[777,123456]});
+    const result=solveFast(input);verify(input,result);
+    assert.equal(result.complete,true);assert.equal(result.target.status,'hit');assert.equal(result.target.hit,777);assert.equal(result.target.hitStep,1);
+  }
+  const input=source([0,0],5,[unit,unit,unit],99999,{manualTargets:[222223]});
+  const result=solveFast(input);verify(input,result);assert.equal(result.target.hit,100000);
 });
 
 test('equal boards retain distinct prefix hits and lower scoring split-clear paths',()=>{

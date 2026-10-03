@@ -28,7 +28,7 @@ Desktop Chrome or Edge is recommended for screen sharing and the optional always
 
 1. Match the board, score, cleared line count, and skill inventory to the game. In screen-sharing mode, you can paste a screenshot and press the recognition button.
 2. Select three pieces. Enter `ㅅㅅㅡ`, or its English keyboard equivalent `ttm`, in the search field and press Enter to fill all three slots.
-3. Request a placement plan. All three pieces appear on the board at once, distinguished by color. Numbers appear when placement order affects the result.
+3. Press Enter again to request a placement plan, or enable **Quick input** to select and search after typing three names. All three pieces appear on the board at once, distinguished by color. Numbers appear when placement order affects the result.
 4. Follow the plan in the game, then confirm completion. The helper updates the board, score, skills, and statistics, and clears the three selection slots.
 
 Select a move, play the sequence, or scrub through individual steps to inspect a plan. Previews do not change the saved board. Undo restores an incorrectly committed action.
@@ -41,10 +41,11 @@ Select a move, play the sequence, or scrub through individual steps to inspect a
 | Placement search | Prioritizes placing all three pieces, then compares simultaneous line-clear scores and space for future pieces. |
 | Screen input | Reads a shared screen or pasted image only when recognition is requested. Video preview uses native browser playback. |
 | Skills | Places dot skills between ordinary pieces and asks for actual reroll results. A completed plan must leave fewer than seven held skills. |
-| Target scores | Searches a list of 16 targets from 100,000 upward. Falls back to a scoring plan when a safe target path is unavailable. |
+| Target scores | Combines 16 automatic targets from 100,000 upward with saved custom targets. Custom targets also work on their own. Falls back to a scoring plan when a safe target path is unavailable. |
 | Draw statistics | A separate screen tracks normal draws and rerolls across all stages and by stage, with direct count editing, filtering, sorting, and undo. |
 | Block library | Includes a dot editor, import/export, and rotation/reflection duplicate detection. Duplicate records merge into the most-observed identity. |
-| Keyboard input | Accepts Hangul, English two-set keyboard input, and composed syllables: `ㄿㄱ` becomes `ㄹㅍㄱ`; `긔` becomes `ㄱㅡㅣ`. |
+| Keyboard input | Accepts Hangul, English two-set keys, and composed syllables. Quick input searches after three names. Hover a board cell and use 1, 2, or backtick to add or remove ability markers. |
+| Game reset | Clears the current run while keeping the block library, observations and preferences. Undo restores the previous game. |
 | Always-on-top view | Shows the plan and completion control in a separate supported browser window. |
 
 Recognized pieces are counted only after their placements are committed. Re-reading or correcting the same image does not count another draw.

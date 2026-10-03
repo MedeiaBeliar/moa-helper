@@ -1,5 +1,5 @@
 import {t, getLanguage} from './i18n.js';
-import {nextTarget} from './targets.js';
+import {nextTarget,activeTargets} from './targets.js';
 
 const $=id=>document.getElementById(id);
 const ease='cubic-bezier(.16,1,.3,1)';
@@ -62,7 +62,7 @@ export class StudioUI {
     $('board-live-state').textContent=busy?'SEARCHING':result?'PLAN READY':mode.startsWith('icon-')?'MARK ABILITY':mode==='place'?'PLACE PIECE':'EDIT MODE';
     const filled=state.board.reduce((sum,row)=>sum+row.toString(2).replaceAll('0','').length,0);
     $('field-density').textContent=`${Math.round(filled/(state.rows*state.cols)*100)}%`;
-    const next=nextTarget(state.currentScore);$('target-progress').style.setProperty('--progress',`${state.currentScore==null?0:next?Math.min(100,state.currentScore/next*100):100}%`);
+    const targets=activeTargets(state),next=nextTarget(state.currentScore,targets);$('target-progress').style.setProperty('--progress',`${state.currentScore==null||!targets.length?0:next?Math.min(100,state.currentScore/next*100):100}%`);
     const selected=state.slots.filter(Boolean).length;
     $('dock-label').textContent=busy?t('배치 공간을 비교하고 있습니다'):result?.reroll?t('실제 바꾸기 결과를 입력하세요'):result?.moves.length?t('게임에 놓은 뒤 반영하세요'):selected===3?t('세 조각 준비 완료'):t`${selected} / 3 조각 선택됨`;
     [...this.reserve.children].forEach((node,i)=>node.classList.toggle('held',i<state.skills.dot+state.skills.reroll));
