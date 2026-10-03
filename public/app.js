@@ -10,7 +10,6 @@ import {validateSpawnRemaining,advanceSpawnRemaining,remainingIconOrder,addSkill
 import {normalizeBlockInput,blocksNamed,blockNameIncludes} from './block-input.js';
 import {StudioUI} from './studio.js';
 import {shapeKey,deduplicateLibrary} from './library.js';
-import {setupStatisticsShare} from './statistics-share.js';
 import {BrowserSession,CommunitySync,SESSION_KEY} from './browser-session.js';
 import {communityForLibrary} from './community.js';
 
@@ -768,5 +767,8 @@ onLanguageChange(()=>{
   $('save-status').textContent=t(saveStatus);
   if($('block-dialog').open){$('dialog-title').textContent=editorId?t('블록 수정'):t('블록 만들기');renderDots();setEditorError(editorError);}
 });
-setupStatisticsShare({getState:()=>loaded?statisticsState():null,getStage:()=>$('statistics-stage').value,getSort:()=>$('statistics-sort').value});
+if(!hosted){
+  const {setupStatisticsShare}=await import('./statistics-share.js');
+  setupStatisticsShare({getState:()=>loaded?state:null,getStage:()=>$('statistics-stage').value,getSort:()=>$('statistics-sort').value});
+}
 boot();

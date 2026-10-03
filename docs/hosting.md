@@ -9,7 +9,7 @@ The public service uses `hosted/server.mjs`, not the local state server. It need
 - Public statistics: normal draws and rerolls for all stages, including unknown-stage observations. Retries are idempotent; an older revision cannot replace a newer one. Undo replaces only the current browser's contribution. Game reset retains observations.
 - Images and placement search: processed in the browser. No video, screenshots, board state, score, custom names, or arbitrary shapes are sent to the public service.
 
-The hosted statistics screen is read-only. Its export uses the public totals. Placement forecasts map public counts back to the player's local library by rotation/reflection equivalence. If no shared counts exist, the solver uses its existing fallback behavior.
+The hosted statistics screen is read-only and has no forum export. The export controls and browser modules are available only in the local application. Placement forecasts map public counts back to the player's local library by rotation/reflection equivalence. If no shared counts exist, the solver uses its existing fallback behavior.
 
 The service validates shape IDs, stage buckets, integer counts, payload size and write origins. Per-address limits reduce accidental or automated flooding. Anonymous visitors can still submit inaccurate counts; these are community observations, not verified game telemetry or official probabilities. Deleting browser data does not remove previously contributed counts, but it does remove that browser's token and progress. A network failure keeps pending counts in the browser for retry.
 

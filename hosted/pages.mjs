@@ -39,7 +39,10 @@ function privacy(language){return language==='en'?`<h2>Storage and shared statis
 function disclaimer(language){return language==='en'?`<p>For MapleStory's Hangul Moa Moa event, October 1, 2026 at 10:00 to October 14, 2026 at 23:59 (KST). MapleStory and related trademarks belong to Nexon and their respective owners. This is an unofficial personal and educational project, not produced or endorsed by Nexon. Recommendations use a bounded search; survival or a particular score is not guaranteed.</p>`:`<p>2026년 10월 1일 오전 10시부터 10월 14일 오후 11시 59분까지(KST) 진행되는 메이플스토리 한글 모아모아 이벤트의 개인·학습용 비공식 도우미입니다. 메이플스토리 및 관련 상표는 넥슨과 각 권리자에게 있으며, 이 프로젝트는 넥슨이 제작하거나 승인하지 않았습니다. 제한 시간 내 탐색을 사용하므로 생존과 특정 점수를 보장하지 않습니다.</p>`;}
 
 export function renderApp(template,{origin,language}){
-  let html=template;
+  // Forum export belongs to the local application, not the public service.
+  let html=template
+    .replace(/<button\b[^>]*\bid="statistics-export"[^>]*>[\s\S]*?<\/button>/,'')
+    .replace(/<dialog\b[^>]*\bid="statistics-export-dialog"[^>]*>[\s\S]*?<\/dialog>/,'');
   if(language==='en'){
     html=html.split(/(<[^>]+>)/g).map(part=>part.startsWith('<')?part.replace(/(aria-label|title|placeholder|content)="([^"]*)"/g,(all,key,value)=>typeof english[value]==='string'?`${key}="${escape(english[value])}"`:all):typeof english[part.trim()]==='string'?part.replace(part.trim(),()=>escape(english[part.trim()])):part).join('');
   }

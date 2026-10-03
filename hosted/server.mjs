@@ -6,6 +6,7 @@ import {StatisticsStore} from './statistics-store.mjs';
 import {domains,renderApp,renderPage,robots,sitemap,llms} from './pages.mjs';
 
 const publicRoot=fileURLToPath(new URL('../public/',import.meta.url));
+const localOnlyAssets=new Set(['index.html','statistics-share.js','statistics-export.js']);
 const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml','.json':'application/json; charset=utf-8','.woff2':'font/woff2','.txt':'text/plain; charset=utf-8'};
 export function securityHeaders(hash){return {
   'X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin',
@@ -55,6 +56,7 @@ export function createHostedHandler({store,catalogue,template,allowedHosts=domai
       if(decoded.split(/[\\/]/).some(segment=>segment.startsWith('.'))||decoded.includes('\\')||decoded.includes('\0'))return send(404,'Not found','text/plain');
       const file=path.resolve(assetRoot,'.'+decoded);
       if(!file.startsWith(path.resolve(assetRoot)+path.sep)||!types[path.extname(file)])return send(404,'Not found','text/plain');
+      if(localOnlyAssets.has(path.relative(assetRoot,file)))return send(404,'Not found','text/plain');
       const data=await readFile(file);
       return send(200,data,types[path.extname(file)],{'Cache-Control':/\.(woff2|png|svg)$/.test(file)?'public, max-age=86400':'public, max-age=0, must-revalidate'});
     }catch(error){const status=error.status||(['ENOENT','EISDIR','ENOTDIR'].includes(error.code)?404:error instanceof URIError?400:500);return send(status,JSON.stringify({error:status===400?'Invalid submission':status===404?'Not found':'Service unavailable'}));}
