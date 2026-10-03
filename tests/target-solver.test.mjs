@@ -83,10 +83,11 @@ test('an exact target on a dead-end partial path never replaces a complete batch
 
 test('near targets avoid overshooting only when the geometry remains safe',()=>{
   const input=source([3,0,0,0],4,[domino,domino,domino],111034),result=solveFast(input);verify(input,result);
-  assert.equal(result.target.status,'approach');assert.equal(result.score,6);assert.equal(result.target.after,111040);
+  const ordinary=solveFast({...input,targetEnabled:false});
+  assert.equal(result.target.status,'fallback');assert.equal(result.score,ordinary.score);assert.ok(result.score>6);
   const guarded={...input,catalogue:[{id:'square',cells:square}]},normal=solveFast({...guarded,targetEnabled:false}),safe=solveFast(guarded);
   verify(guarded,safe);assert.equal(safe.target.status,'fallback');assert.equal(safe.score,normal.score);
-  assert.ok(safe.score>result.score);
+  assert.ok(safe.lines>0,'do not avoid every clear merely to stay below a nearby target');
 });
 
 test('distant and passed goals keep the high-score policy, unknown scores are explicit',()=>{

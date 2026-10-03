@@ -46,6 +46,7 @@ Select a move, play the sequence, or scrub through individual steps to inspect a
 | Block library | Includes a dot editor, import/export, and rotation/reflection duplicate detection. Duplicate records merge into the most-observed identity. |
 | Keyboard input | Accepts Hangul, English two-set keys, and composed syllables. Quick input searches after three names. Hover a board cell and use 1, 2, or backtick to add or remove ability markers. |
 | Game reset | Clears the current run while keeping the block library, observations and preferences. Undo restores the previous game. |
+| Restart advice | Flags crowded boards with difficult gaps and limited recovery, with the affected cells, shapes and skills shown. Resetting remains manual. |
 | Always-on-top view | Shows the plan and completion control in a separate supported browser window. |
 
 Recognized pieces are counted only after their placements are committed. Re-reading or correcting the same image does not count another draw.
@@ -54,9 +55,9 @@ Recognized pieces are counted only after their placements are committed. Re-read
 
 The solver runs in a Web Worker with an **850ms search budget**. A **950ms browser watchdog** recovers the latest available plan. Browser scheduling and system load can delay display beyond that time.
 
-A historical simulation reached the 500,000 display cap. Across 1,177 recommendations, average calculation time was 478ms and the maximum was 829ms. The run stopped before death, used an estimated distribution shared across stages, and predates a scoring correction for dot skills. These numbers do not predict live-game scores. See the [benchmark conditions and comparison](docs/benchmarks.md).
+Six current-policy simulations scored 106,403 to 500,000, averaging 260,550. Five ended in verified death; one reached the cap. Four reached 200,000, so a 200,000-point minimum has not been achieved. The 2,767 recommendations averaged about 258ms with a maximum of 685ms. The runs used observed stage distributions, and four seeds had already been used for tuning. See the [full results, failed experiments and conditions](docs/benchmarks.md).
 
-Future draws are unknown. The search compares candidates and sampled future pieces within its time budget; it cannot guarantee a globally optimal plan or an exact target score.
+Future draws are unknown. The search compares candidate boards against the registered next-piece distribution within its time budget, with sampled hands as a fallback. It cannot guarantee a globally optimal plan or an exact target score. Rerolls require actual replacement input and another recommendation.
 
 ## Data and privacy
 

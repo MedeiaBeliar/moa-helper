@@ -47,6 +47,8 @@ For manual placement, choose **Place manually** on a selected piece and click it
 
 Recommendations use the saved normal-draw records for the stage selected by the cleared-line count. Update that count when joining an ongoing game. Candidate plans that cross a stage boundary are evaluated against the next stage's records. Missing stage records fall back to overall observations. The calculation details show the stage and sample count used; observations estimate the distribution and do not guarantee a score.
 
+When a crowded board has blocked shapes, difficult gaps, and little recovery capacity, **Consider restarting** appears below the recommendation. It lists occupied cells, blocked shape types, remaining skills, and dots. These figures describe the board after the proposed moves. Recovery is still possible, so the message does not predict a final score. Continue playing or use its **Reset game** button; resets remain manual and can be undone.
+
 ## Screen sharing and pasted images
 
 Select **Screen capture**, then **Start sharing**, and choose the game window. You can also paste an image with Ctrl+V in this mode. Press **Recognize · read one frame** to read the board and three pieces and request a plan. Pasting alone does not analyze the image.
@@ -70,6 +72,8 @@ Enter the number of dot and reroll skills you currently hold. The input permits 
 A dot skill places one cell in any empty location. Plans can use several dots between ordinary pieces. Viewing a recommendation does not spend a skill.
 
 A reroll outcome is unknown until you perform it. Follow the recommended prefix in the game, reroll the indicated piece, then enter the resulting name and press Enter. The helper applies the prefix and spent skill and continues searching. The same shape may be entered again as a new draw. With screen input, press recognition and then **Apply captured reroll** to confirm the observed result.
+
+The helper can suggest a reroll while the current pieces still fit if sampled replacements offer better placement space. It also gives scarce dots more value as a reserve for difficult gaps. A proposed skill use is applied only when you confirm it.
 
 The board tools **◎ Dot** and **↔ Reroll** mark ability locations. Selecting the same type on the same cell removes its marker. Occupied cells may also contain markers. Clearing a marked row adds the ability and 50 points when the inventory rules permit acquisition.
 

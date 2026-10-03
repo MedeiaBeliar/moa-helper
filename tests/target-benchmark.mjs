@@ -135,6 +135,7 @@ async function runGame({mode,seed,gameId}){
     timing:{calls:ledger.calls,averageMs:Math.round(ledger.totalMs/(ledger.calls||1)),maxMs:Math.round(ledger.maxMs),over1000:ledger.over1000,watchdogs:ledger.watchdogs,
       workerStartupMs:Math.round(ledger.workerStartupMs),maxBatchCumulativeMs:Math.round(Math.max(ledger.maxBatchMs,ledger.currentBatchMs))},
     fallbacks:ledger.fallbacks,partialPlans:ledger.partialPlans,capReached:ledger.capReached,
+    restartWarnings:ledger.restartWarnings??0,firstRestartRecommendation:ledger.firstRestartRecommendation??null,restart:ledger.lastRestartAssessment??null,
     activeMs:Math.round(ledger.activeMs+performance.now()-sessionStart),processCpuMicros:ledger.cpuMicros+Object.values(process.cpuUsage(cpuStart)).reduce((a,b)=>a+b,0),
     cpuNote:'프로세스 전체의 CPU 시간이며 병행하는 모든 게임의 부하가 함께 포함됨',updatedAt:new Date().toISOString(),startedAt,
     normalSamples:catalogue.reduce((s,b)=>s+b.normal,0),rerollSamples:catalogue.reduce((s,b)=>s+b.reroll,0),stageProbabilityModel:drawModel.description,conditions,hardware,hashes,error:failure,
@@ -242,6 +243,11 @@ async function runGame({mode,seed,gameId}){
       });
       ledger.calls++;ledger.totalMs+=decision.elapsed;ledger.maxMs=Math.max(ledger.maxMs,decision.elapsed);ledger.over1000+=Number(decision.elapsed>1000);ledger.watchdogs+=Number(decision.expired);
       const result=decision.result;let actions=0;
+      ledger.lastRestartAssessment=result?.restart??null;
+      if(result?.restart?.recommended){
+        ledger.restartWarnings=(ledger.restartWarnings??0)+1;
+        ledger.firstRestartRecommendation??={score:game.score,batch:game.batches,call:ledger.calls,assessment:result.restart};
+      }
       // Intermediate targets do not stop playback; only the explicit 500k
       // preset may stop mid-plan. New icons can add an unpredicted bonus.
       for(const [index,move] of (result?.moves||[]).entries()){
@@ -257,7 +263,8 @@ async function runGame({mode,seed,gameId}){
       if(result&&!result.complete&&result.moves?.length)ledger.partialPlans++;
       if(!actions&&!isDead(game))fallback();audit();
       ledger.currentBatchMs+=decision.elapsed;
-      ledger.trace.push({call:ledger.calls,batch:game.batches,score:game.score,elapsedMs:Math.round(decision.elapsed),complete:appliedCompletePlan,watchdog:decision.expired,targetCount:ledger.hits.length});
+      ledger.trace.push({call:ledger.calls,batch:game.batches,score:game.score,elapsedMs:Math.round(decision.elapsed),complete:appliedCompletePlan,watchdog:decision.expired,targetCount:ledger.hits.length,
+        board:game.board.slice(),skills:{...game.skills},strategy:result?.strategy??null});
       if(ledger.trace.length>1000)ledger.trace.splice(0,ledger.trace.length-1000);
       await save(terminalStatus()||'running');
     }

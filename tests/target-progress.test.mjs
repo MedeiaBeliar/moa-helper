@@ -105,6 +105,11 @@ test('active calculation time advances while the score is unchanged and abilitie
   assert.match(renderProgress(state),/생성 중단/);
 });
 
+test('restart warnings remain advice and do not replace the running status',()=>{
+  const output=renderProgress(snapshot([game({restart:{recommended:true}})]));
+  assert.match(output,/리셋 추천 신호/);assert.match(output,/실행 중/);assert.doesNotMatch(output,/사망 확인/);
+});
+
 test('a standard 80 by 24 terminal keeps both 500k games visible without rotating pages',()=>{
   let output='';const stream={isTTY:true,columns:80,rows:24,write:text=>{output+=text;}};
   const state={...snapshot(['1-target','2-target'].map(gameId=>game({gameId,score:450001,hits:TARGET_SCORES,

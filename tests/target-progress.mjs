@@ -78,7 +78,7 @@ export function renderProgress(snapshot={}, {width=100,compact=false,now=Date.no
     lines.push('');
     const mode=game.mode==='target'?'목표 ON':game.mode==='normal'?'목표 OFF':clean(game.mode||'');
     const activity=game.calculationStartedAt!=null?`계산 중 ${(Math.max(0,now-game.calculationStartedAt)/1000).toFixed(1)}초`:clean(game.activity);
-    add(`${gameName(game,index)}${compact?'':` ${mode} · 시드 ${clean(game.seed??'-')}`} · ${statusText(game.status)}${activity?` · ${activity}`:''}`);
+    add(`${gameName(game,index)}${compact?'':` ${mode} · 시드 ${clean(game.seed??'-')}`} · ${statusText(game.status)}${activity?` · ${activity}`:''}${game.restart?.recommended?' · 리셋 추천 신호':''}`);
     add(`현재 ${number(item.score)}점 · ${number(game.completedBatches??0)}세트 · 추천 평균 ${number(game.timing?.averageMs)}ms`);
     if(game.skills){
       const held=game.skills.dot+game.skills.reroll;

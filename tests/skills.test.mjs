@@ -65,15 +65,15 @@ test('below seven, retain skills when one placement point does not justify spend
   assert.deepEqual(result.skillsUsed,{dot:0,reroll:0});assert.equal(result.reroll,null);
 });
 
-test('at seven, spend a dot for one point; future ranking cannot restore a full inventory',()=>{
+test('at seven, spend a reroll to preserve the last dots; confirmation updates only the actual draw',()=>{
   for(const dot of [1,2])for(const safetyFirst of [false,true]){
     const state=stateFor([0,0],10,Array(3).fill([[0,0]]),{dot,reroll:7-dot});
     state.options={...state.options,lookAhead:true,safetyFirst};
     const before=structuredClone(state),result=solve({...state,catalogue:state.blocks,pieces:state.slots.map(s=>({id:s.instanceId,cells:s.cells}))});
-    assert.equal(result.complete,true);assert.equal(result.score,4);assert.equal(result.reroll,null);
-    assert.deepEqual(result.skillsUsed,{dot:1,reroll:0});assert.equal(result.moves.length,4);
-    const next=completePlan(state,result);assert.equal(next.skills.dot+next.skills.reroll,6);
-    assert.deepEqual(next.slots,[null,null,null]);assert.deepEqual(state,before);
+    assert.equal(result.complete,false);assert.equal(result.score,0);assert.equal(result.reroll.reason,'capacity');
+    assert.deepEqual(result.skillsUsed,{dot:0,reroll:1});assert.equal(result.moves.length,0);
+    const next=applyReroll(state,result,'b0');assert.equal(next.skills.dot+next.skills.reroll,6);
+    assert.equal(next.skills.dot,dot);assert.deepEqual(next.board,state.board);assert.ok(next.slots.every(slot=>!slot.used));assert.deepEqual(state,before);
   }
 });
 

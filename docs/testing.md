@@ -1,6 +1,6 @@
 # Testing
 
-[README](../README.md) · [Historical measurements](benchmarks.md)
+[README](../README.md) · [Measured results](benchmarks.md)
 
 ## Regression checks
 
@@ -19,6 +19,8 @@ The 500k runner checks use two workers, stop and resume temporary checkpoints, a
 
 Probability regressions check stage boundaries, overall fallback, nonzero weights for unseen shapes, separation of normal and reroll records, and exclusion of unidentified or deleted entries. Paired recommendations on the same board verify that stage records affect ranking even without sampled lookahead. Proven failed future hands must remain in candidate comparisons. Pixel fixtures cover reported recognition errors without a browser.
 
+An independent placement oracle verifies the full-distribution mean and weighted lower quartile. Additional checks cover rare-hole penalties, dot preservation at capacity, and restart warnings that respect recovery skills and pending rerolls.
+
 Legacy browser fixtures remain in `tests/*-browser.mjs` for reference. They are outside the active validation workflow. Do not run `test:ui` or `test:http`. Record the operating system, Node version, hardware, and untested UI behavior when reporting results. The repository does not use hosted CI.
 
 ## Two-game 500k run
@@ -32,6 +34,8 @@ npm run test:500k
 This preset runs two games concurrently with all automatic targets enabled, using seeds 509 and 510. It reads the saved blocks and stage statistics without changing the save. Both workers run at normal priority without artificial rest or load-based throttling. Each recommendation retains the application's one-second budget.
 
 Each game ends at 500,000 points or verified death. A cap result is marked `cap-reached`, not `dead`. Reaching an intermediate target is recorded and play continues. The display shows progress toward 500,000, points remaining, the next intermediate target, and exact arrivals for each game. The console stays open after completion.
+
+Restart warnings appear in the dashboard and are saved with their first occurrence and total count. They do not stop or reset the game. Every low-scoring death remains in the report. Traces retain recent boards, inventories, and search evidence for diagnosing failures.
 
 In an interactive terminal, each placement, dot, reroll, and completed set updates the display immediately, before checkpoint writes. Calculation elapsed time refreshes every 100ms. Short windows use a compact view to keep both games visible, showing the hit count and the two most recent targets; the reports retain every exact arrival. Redirected output uses sparse snapshots instead of cursor control codes.
 

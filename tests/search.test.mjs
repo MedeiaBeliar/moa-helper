@@ -6,6 +6,18 @@ import {variants,canPlace,place} from '../public/solver.js';
 function input(board,cols,shapes,skills={dot:0,reroll:0}) {
   return {board,cols,pieces:shapes.map((cells,id)=>({id:`piece-${id}`,cells})),skills,options:{rotate:false,reflect:false}};
 }
+
+test('dot acquisition value changes ranking without adding fictional score',()=>{
+  const source={...input([3,3],3,[[[0,0]]]),skillIcons:[{x:0,y:0,kind:'reroll'},{x:0,y:1,kind:'dot'}]};
+  for(const dotAbilityValue of [1000,-1000]){
+    const found=searchPlacements({...source,options:{...source.options,abilityValue:0,dotAbilityValue}},
+      {deadline:performance.now()+1000,width:40,evaluate:()=>0});
+    const chosen=found.candidates[0];
+    assert.equal(chosen.moves[0].y,dotAbilityValue>0?1:0);
+    assert.equal(chosen.acquiredCount,1);assert.equal(chosen.score,351);
+    assert.equal(chosen.moves[0].score,351);assert.equal(chosen.moves[0].acquisitionScore,50);
+  }
+});
 function replay(source,candidate) {
   let board=source.board,score=0,dots=0;const ids=new Set();
   for(const move of candidate.moves) {

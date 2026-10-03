@@ -1,5 +1,11 @@
 // Korean source messages are stable keys. Keep {n} placeholders intact.
 export default {
+  "후보 {0}개에서 다음 조각 {1}종을 전부 비교했습니다.": "Compared all {1} next-piece types across {0} candidate boards.",
+  "리셋 추천": "Consider restarting",
+  "배치 후 공간이 막힐 위험이 커서 다시 뽑기를 제안합니다. 실제 결과를 입력하면 이어서 계산합니다.": "The planned placements risk blocking the board. Try the suggested reroll and enter the actual result to continue.",
+  "추천 배치 후에도 놓기 어려운 조각과 메우기 힘든 빈칸이 남습니다. 고득점을 노린다면 새 판을 고려하세요.": "The planned board still has blocked shapes and gaps that are difficult to fill. Consider a new game if you are aiming for a high score.",
+  "사용 중인 칸 {0}/{1} · 바로 놓을 수 없는 조각 {2}종 · 남는 스킬 {3}개 (점 찍기 {4}개)": "Occupied cells: {0}/{1} · Currently blocked shapes: {2} · Skills remaining: {3} ({4} dots)",
+  "사망 확정이나 최종 점수 예측은 아닙니다. 계속 플레이해도 되며 자동 초기화하지 않습니다.": "This is not a confirmed loss or a final-score prediction. You can keep playing; the helper never resets automatically.",
   "화면 인식 중 오류가 발생했습니다: {0}": "Screen recognition failed: {0}",
   "수동 목표": "Custom targets",
   "목표 점수": "Target score",

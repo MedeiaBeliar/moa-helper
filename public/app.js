@@ -350,10 +350,19 @@ function renderRecommendations() {
   if(!result){$('search-meta').textContent=t('추천은 이 보드에만 표시됩니다. 실제 게임의 조작은 직접 해 주세요.');return;}
   const cost=result.skillsUsed.dot?t`점 찍기 ${result.skillsUsed.dot}개 사용 예정. `:'';
   const reserve=state.skills.dot+state.skills.reroll===7?t('스킬 7개 보유 중 · 최소 1개를 사용해 6개 이하로 유지합니다. '):'';
-  $('recommend-summary').append(el('strong',t`${result.score.toLocaleString()}점 · ${result.lines}줄`),el('p',reserve+cost+(unordered?t('어느 순서로 놓아도 제거되는 줄과 최종 점수가 같습니다.'):result.complete?t('현재 남은 조각을 모두 사용하는 순서입니다.'):result.reroll?.reason==='capacity'?t('스킬 자리를 비우기 위해 먼저 다시 뽑기를 사용하세요. 실제 결과를 입력하면 세 조각을 다시 계산합니다.'):result.reroll?t('일반 배치로 완료할 순서를 찾지 못해 다시 뽑기를 제안합니다. 아래 결과 입력 후 이어서 탐색합니다.'):t`${result.depth}개 조각의 일부 배치입니다. 사망 판정이 아닙니다. 게임에 놓은 뒤 일부 배치를 반영하고, 새로 얻은 스킬을 입력해 이어서 추천할 수 있습니다.`)));
+  $('recommend-summary').append(el('strong',t`${result.score.toLocaleString()}점 · ${result.lines}줄`),el('p',reserve+cost+(unordered?t('어느 순서로 놓아도 제거되는 줄과 최종 점수가 같습니다.'):result.complete?t('현재 남은 조각을 모두 사용하는 순서입니다.'):result.reroll?.reason==='capacity'?t('스킬 자리를 비우기 위해 먼저 다시 뽑기를 사용하세요. 실제 결과를 입력하면 세 조각을 다시 계산합니다.'):result.reroll?.reason==='prevent-trap'?t('배치 후 공간이 막힐 위험이 커서 다시 뽑기를 제안합니다. 실제 결과를 입력하면 이어서 계산합니다.'):result.reroll?t('일반 배치로 완료할 순서를 찾지 못해 다시 뽑기를 제안합니다. 아래 결과 입력 후 이어서 탐색합니다.'):t`${result.depth}개 조각의 일부 배치입니다. 사망 판정이 아닙니다. 게임에 놓은 뒤 일부 배치를 반영하고, 새로 얻은 스킬을 입력해 이어서 추천할 수 있습니다.`)));
   $('recommend-summary').append(el('p',t`배치 ${result.placementScore.toLocaleString()}점 + 줄 제거 ${result.lineScore.toLocaleString()}점 + 표시한 능력 획득 ${(result.acquisitionScore||0).toLocaleString()}점`));
   if(targetHit)$('recommend-summary').prepend(el('strong',t`${result.target.hitStep}번에서 ${result.target.hit.toLocaleString()}점 · 목표에서 멈추기`,'target-hit'));
   else if(result.target?.enabled)$('recommend-summary').append(el('p',result.target.status==='approach'?t('목표를 넘지 않는 안전한 배치로 접근합니다.'):t('이번에 안전하게 맞출 목표를 찾지 못해 고득점 배치를 추천합니다.')));
+  if(result.restart?.recommended){
+    const warning=el('section',undefined,'restart-advice');warning.setAttribute('role','status');
+    warning.append(el('strong',t('리셋 추천')),
+      el('p',t('추천 배치 후에도 놓기 어려운 조각과 메우기 힘든 빈칸이 남습니다. 고득점을 노린다면 새 판을 고려하세요.')),
+      el('p',t`사용 중인 칸 ${result.restart.occupied}/${result.restart.totalCells} · 바로 놓을 수 없는 조각 ${result.restart.blockedTypes}종 · 남는 스킬 ${result.restart.heldSkills}개 (점 찍기 ${result.restart.dotSkills}개)`),
+      el('small',t('사망 확정이나 최종 점수 예측은 아닙니다. 계속 플레이해도 되며 자동 초기화하지 않습니다.')),
+      button(t('게임 초기화'),()=>$('reset-game').click(),'text-button'));
+    $('recommend-summary').append(warning);
+  }
   result.moves.forEach((move,i)=>{
     const li=el('li');
     const b=colorStep(button('',()=>{placement=null;hover=null;mode='paint';preview=preview===i?-2:i;renderBoard();renderRecommendations();renderTray();renderPip();},`move-button step-${i+1}`+(unordered?' order-free':'')+(preview===i?' selected':'')),i);
@@ -379,6 +388,7 @@ function renderRecommendations() {
     $('reroll-result').value=selected;$('apply-reroll').disabled=!$('reroll-result').value;
   }
   const strategy=result.strategy;
+  if(strategy?.enumeratedCandidates)$('recommend-summary').append(el('p',t`후보 ${strategy.enumeratedCandidates}개에서 다음 조각 ${strategy.enumeratedTypes}종을 전부 비교했습니다.`));
   const probabilityStage=strategy?.nextStage??strategy?.stage,probabilitySamples=strategy?.nextStageSamples??strategy?.stageSamples;
   const probabilitySource=probabilitySamples?t`${probabilityStage}단계 일반 출현 ${probabilitySamples}회 · 전체 ${strategy.observedSamples}회로 보정.`:strategy?.observedSamples?t`일반 출현 전체 ${strategy.observedSamples}회 · 현재 단계 표본 없음.`:t('출현 기록이 없어 균등한 가상 시나리오를 사용합니다.');
   const forecast=strategy?t` ${state.blocks.length}종 공간 평가 · 향후 ${strategy.depth}세트 시나리오 ${strategy.tested}개 비교${strategy.skipped?t` · 시간 부족 ${strategy.skipped}개 제외`:''}. ${probabilitySource} 미래는 추가 스킬 없이 점검하며 실제 확률·생존을 보장하지 않습니다.`:'';

@@ -31,6 +31,7 @@ export function countLegalPlacements(board,compiled,limit=Infinity) {
   }
   return count;
 }
+
 function bitCount(value) {
   value-=(value>>>1)&0x55555555;value=(value&0x33333333)+((value>>>2)&0x33333333);
   return (((value+(value>>>4))&0x0f0f0f0f)*0x01010101)>>>24;
@@ -75,6 +76,9 @@ export function searchPlacements(input,{deadline=performance.now()+2000,width=10
   const beam=Math.max(4,Math.min(1200,Math.floor(width)||100)),full=(1<<cols)-1,all=(1<<pieces.length)-1;
   const scoreWeight=Number.isFinite(options.scoreWeight)?options.scoreWeight:1;
   const dotPenalty=Number.isFinite(options.dotPenalty)?options.dotPenalty:40;
+  const abilityValue=Number.isFinite(options.abilityValue)?options.abilityValue:0;
+  const dotAbilityValue=Number.isFinite(options.dotAbilityValue)?options.dotAbilityValue:abilityValue;
+  const dotIconMask=skillIcons.reduce((mask,icon,i)=>icon.kind==='dot'?mask|(1<<i):mask,0);
   const quality=evaluate??(current=>defaultQuality(current,cols));
   const targets=activeTargets({...input,targetEnabled:input.targetEnabled===true});
   const targetMode=targets.length>0&&Number.isSafeInteger(input.currentScore)&&input.currentScore>=0&&input.currentScore<=500000;
@@ -89,7 +93,7 @@ export function searchPlacements(input,{deadline=performance.now()+2000,width=10
   const root={board:board.slice(),hash:rootHash>>>0,used:0,depth:0,dots:0,lines:0,score:0,quality:quality(board),parent:null,targetHit:null,targetStep:null,iconMask:0,acquiredCount:0};
   let bestPartial=root,bestComplete=null,bestTarget=null,finalists=[],finalSeen=new Map();
   const eligible=n=>n.used===all&&initialHeld-n.dots+n.acquiredCount<7;
-  const utility=n=>n.score*scoreWeight+n.quality-n.dots*dotPenalty;
+  const utility=n=>n.score*scoreWeight+n.quality-n.dots*dotPenalty+n.acquiredCount*abilityValue+bitCount(n.iconMask&dotIconMask)*(dotAbilityValue-abilityValue);
   const rank=(a,b)=>utility(b)-utility(a)||b.score-a.score||a.dots-b.dots||b.quality-a.quality;
   const scoreRank=(a,b)=>b.score-a.score||a.dots-b.dots||b.quality-a.quality;
   const spaceRank=(a,b)=>b.quality-a.quality||b.score-a.score||a.dots-b.dots;
