@@ -86,3 +86,5 @@ Input, algorithm, and target-list hashes must match. Start a new run after chang
 Record the seed, shape distribution, stage samples, ability-generation model, time budget, CPU, and memory alongside scores. Include the termination reason, death verification, completed sets, and recommendation count.
 
 Actual stage-dependent draw probabilities are unknown. The simulator uses smoothed observations and a uniform-empty-cell model for ability positions. Scores under these assumptions do not guarantee the same outcome in the game.
+
+Run `npm run test:hosted` with Node.js 22.13+ for browser-save isolation, confirmed-draw payloads, contribution replay and undo, SQLite durability, write-origin and size limits, hostname policy, and per-domain bilingual SEO markup. These tests use in-memory request/response streams and temporary SQLite databases; they do not start a server or browser. Live deployment verification uses HTTPS requests against the deployed service.

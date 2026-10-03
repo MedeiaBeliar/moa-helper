@@ -6,6 +6,8 @@ const sourceByEnglish=new Map(Object.entries(english).filter(([,value])=>typeof 
 let language='ko';
 try{if(globalThis.localStorage?.getItem(LANGUAGE_KEY)==='en')language='en';}catch{}
 
+if(typeof location!=='undefined'&&typeof document!=='undefined'&&document.querySelector('meta[name="moa-storage"][content="browser"]'))language=location.pathname.startsWith('/en/')?'en':'ko';
+
 export const getLanguage=()=>language;
 export function setLanguage(value,{persist=true}={}){
   if(!['ko','en'].includes(value))return false;
@@ -39,7 +41,7 @@ export function bindStaticTranslations(doc){
   while(walker.nextNode()){
     const node=walker.currentNode;
     if(node.parentElement?.closest('script,style,[translate="no"]'))continue;
-    const key=node.data.trim();
+    const key=sourceByEnglish.get(node.data.trim())??node.data.trim();
     if(!Object.hasOwn(english,key))continue;
     const leading=node.data.match(/^\s*/)[0],trailing=node.data.match(/\s*$/)[0];
     bindings.push(()=>{if(node.isConnected)node.data=leading+t(key)+trailing;});
@@ -47,7 +49,7 @@ export function bindStaticTranslations(doc){
   for(const node of doc.querySelectorAll('[aria-label],[title],[placeholder],meta[name="description"]')){
     if(node.closest('[translate="no"]'))continue;
     for(const attribute of ['aria-label','title','placeholder','content']){
-      const key=node.getAttribute(attribute);
+      const raw=node.getAttribute(attribute),key=sourceByEnglish.get(raw)??raw;
       if(key&&Object.hasOwn(english,key))bindings.push(()=>node.setAttribute(attribute,t(key)));
     }
   }

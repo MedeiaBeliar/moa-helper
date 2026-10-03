@@ -1,6 +1,6 @@
 # Moa Helper
 
-Moa Helper is a local puzzle assistant for MapleStory's **Hangul Moa Moa** event, running from **October 1, 2026 at 10:00 AM to October 14, 2026 at 11:59 PM (KST)**. It is an unofficial project for personal use and learning.
+Moa Helper is a browser-based puzzle assistant for MapleStory's **Hangul Moa Moa** event, running from **October 1, 2026 at 10:00 AM to October 14, 2026 at 11:59 PM (KST)**. It is an unofficial project for personal use and learning.
 
 Enter the board and three pieces, or read a shared screen, to find a placement plan with rotations, reflections, and available skills. The helper shows the moves; you place the pieces in the game.
 
@@ -60,11 +60,22 @@ Six current-policy simulations scored 106,403 to 500,000, averaging 260,550. Fiv
 
 Future draws are unknown. The search compares candidate boards against the registered next-piece distribution within its time budget, with sampled hands as a fallback. It cannot guarantee a globally optimal plan or an exact target score. Rerolls require actual replacement input and another recommendation.
 
+## Online version
+
+Open any of the following addresses. Each domain has separate browser progress; all four share the same public draw statistics.
+
+- [moa.chocolily.dev](https://moa.chocolily.dev)
+- [moa.moria-luluka.com](https://moa.moria-luluka.com)
+- [moa.morialuluka.com](https://moa.morialuluka.com)
+- [moa.응가.tv](https://moa.xn--o39a013c.tv)
+
+The hosted service requires Node.js 22.13 or later. The local application still supports Node.js 20 or later. See [hosting and data handling](docs/hosting.md).
+
 ## Data and privacy
 
-Blocks, board state, skills, score, and statistics are stored in `data/state.json`. Back up the `data` directory to preserve a game. Block export contains only the block library.
+In local mode, blocks, board state, skills, score, and statistics are stored in `data/state.json`. Back up the `data` directory to preserve a game. Block export contains only the block library.
 
-The server binds to `127.0.0.1`. Video and clipboard images are analyzed in the browser and are not sent to the server. Pretendard is bundled locally, so the running application requires no external service connection. Personal saves, generated test output, and installed packages are excluded from the source bundle.
+The local server binds to `127.0.0.1`. Video and clipboard images are analyzed in the browser and are not sent to the server. Pretendard is bundled locally, so the running application requires no external service connection. Personal saves, generated test output, and installed packages are excluded from the source bundle.
 
 ## Development
 
@@ -93,7 +104,7 @@ Extract `releases/moa-helper-github.zip` and use its `moa-helper` directory as t
 - [Architecture](docs/architecture.md): modules, search, and state transitions
 - [Testing](docs/testing.md): Node checks, 500k runs, and comparisons through death
 - [Contributing](CONTRIBUTING.md): change scope, reproduction cases, and validation
-- [Security](SECURITY.md): local-server scope and vulnerability reporting
+- [Security](SECURITY.md): local and hosted isolation, public statistics, and vulnerability reporting
 
 ## Disclaimer and license
 

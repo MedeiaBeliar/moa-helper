@@ -1,6 +1,10 @@
 # Security
 
-Moa Helper is a local application for one computer. Its server binds to `127.0.0.1` and does not provide authentication or isolation between multiple users. Exposing it on a public interface or hosting it as a shared service is outside its supported scope.
+The local entry point, `server.mjs`, is for one computer and binds to `127.0.0.1`. Do not expose its state API to the internet.
+
+The separate hosted entry point, `hosted/server.mjs`, has no state API. It accepts only canonical shape IDs, stage buckets, counts, anonymous contributor tokens and monotonic revisions. Progress and screenshots stay in the browser. Public responses contain aggregates, not contributor records. The Node listener remains on loopback behind HTTPS Nginx with an explicit hostname allowlist, strict write-origin checks, request size limits and rate limits. SQLite transactions keep replacements and undo atomic.
+
+Anonymous observations are not authenticated game telemetry. Rate limits and validation constrain malformed submissions but cannot prove that a submitted count came from a real game. Treat public frequencies as community observations, not official probabilities. Do not put secrets in browser storage. A stolen contributor token could alter that contributor's own counts.
 
 The save contains block definitions, game state, and observations. Source video and clipboard images are processed in the browser. Keep the server's Host, Origin, path, and state validation checks in place.
 

@@ -15,7 +15,9 @@
     "test:parallel": "node --test tests/target-parallel.test.mjs",
     "check:release": "node scripts/check-release.mjs",
     "release:bundle": "node scripts/release.mjs",
-    "test:500k": "node tests/500k-runner.mjs"
+    "test:500k": "node tests/500k-runner.mjs",
+    "test:hosted": "node --test tests/hosted.test.mjs",
+    "start:hosted": "node hosted/server.mjs"
   },
   "engines": {
     "node": ">=20"

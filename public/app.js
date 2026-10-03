@@ -6,17 +6,27 @@ import { stateFromCapture, rerollFromCapture } from './capture-state.js';
 import { emptyStatistics, recordNormalDraws, statisticsRows, statisticsView, setObservationCounts, resetStatistics, observedPercent, stageForLines, addClearedLines } from './statistics.js';
 import {activeTargets,validateManualTargets,isTargetScore,nextTarget,addScore,scoreMoves} from './targets.js';
 import {resetGameState} from './game-state.js';
-import {validateSpawnRemaining,advanceSpawnRemaining,remainingIconOrder,editSkillIcon} from './abilities.js';
+import {validateSpawnRemaining,advanceSpawnRemaining,remainingIconOrder,addSkillIcon,removeSkillIcon} from './abilities.js';
 import {normalizeBlockInput,blocksNamed,blockNameIncludes} from './block-input.js';
 import {StudioUI} from './studio.js';
 import {shapeKey,deduplicateLibrary} from './library.js';
 import {setupStatisticsShare} from './statistics-share.js';
+import {BrowserSession,CommunitySync,SESSION_KEY} from './browser-session.js';
+import {communityForLibrary} from './community.js';
 
 const refreshStaticLanguage=bindStaticTranslations(document);
 const $ = id => document.getElementById(id);
 const clone = value => structuredClone(value);
 const uid = () => crypto.randomUUID();
 const DRAFT = 'moa-manual-unsaved-v1';
+const hosted=!!document.querySelector('meta[name="moa-storage"][content="browser"]');
+let browserSession,communitySync,communityCatalogue=[],communityStatistics={entries:[]},communityStatus='offline';
+function statisticsState(){return hosted?{blocks:communityCatalogue,statistics:communityStatistics}:state;}
+function solverStatistics(){return hosted&&communityStatistics.entries.length?communityForLibrary(communityStatistics,communityCatalogue,state.blocks):state.statistics;}
+function renderCommunityStatus(){
+  $('community-status').hidden=!hosted;if(!hosted)return;
+  $('community-status').textContent=communityStatus==='ready'?t('사이트 공용 통계 · 확정한 조각의 종류·단계·횟수만 합산합니다. 진행 상태는 이 브라우저에 저장됩니다.'):communityStatus==='syncing'?t('사이트 공용 통계 동기화 중…'):t('공용 통계 연결 대기 중 · 진행 상태와 전송할 기록은 브라우저에 보관됩니다.');
+}
 let state, loaded = false, revision = 0, savedRevision = 0, saving = false, saveTimer;
 let stagePersistenceSupported=true;
 let worker, searchTimer, generation = 0, result = null, preview = -1, busy = false;
@@ -80,11 +90,17 @@ function button(text, action, className) { const b=el('button',text,className); 
 function remember() { history.push(clone(state)); if(history.length>40)history.shift(); }
 function dirty() {
   revision++;
+  if(hosted){saveBrowser();return;}
   try { localStorage.setItem(DRAFT,JSON.stringify(state)); } catch { message(()=>(t('브라우저 임시 백업을 저장하지 못했습니다. 로컬 파일 저장 상태를 확인하세요.')),true); }
   $('save-status').textContent=t('저장 중…'); $('save-status').classList.remove('error');
   clearTimeout(saveTimer); saveTimer=setTimeout(save,180);
 }
+function saveBrowser(){
+  try{browserSession.save(state);savedRevision=revision;$('save-status').textContent=t('브라우저에 저장됨');$('save-status').classList.remove('error');$('retry-save').hidden=true;communitySync.flush();}
+  catch(error){$('save-status').textContent=t('브라우저 저장 실패');$('save-status').classList.add('error');$('retry-save').hidden=false;message(()=>t(error.message),true);}
+}
 async function save() {
+  if(hosted){if(loaded)saveBrowser();return;}
   if(!loaded || saving || savedRevision===revision)return;
   saving=true; const target=revision, snapshot=JSON.stringify(state);
   try {
@@ -169,13 +185,15 @@ function renderTray() {
 }
 function renderStatistics() {
   const stage=$('statistics-stage').value,query=$('statistics-search').value;
-  const {rows:rawRows,totals}=statisticsView(state,{sort:$('statistics-sort').value,stage});
+  const {rows:rawRows,totals}=statisticsView(statisticsState(),{sort:$('statistics-sort').value,stage});
   const rows=rawRows.filter(row=>blockNameIncludes(row.name,query)||(row.blockId===null&&blockNameIncludes(t('미분류 (화면 인식)'),query))).map(row=>row.blockId===null?{...row,name:t('미분류 (화면 인식)')}:row);
   studio.statistics(rows,totals);
   $('statistics-total').textContent=t`일반 ${totals.normal.toLocaleString()}회 · 바꾸기 ${totals.reroll.toLocaleString()}회 · 합계 ${totals.total.toLocaleString()}회`;
   $('statistics-empty').hidden=totals.total>0;
   $('statistics-no-match').hidden=rows.length>0;
-  $('statistics-reset').disabled=statisticsRows(state).totals.total===0;
+  $('statistics-reset').disabled=hosted||statisticsRows(state).totals.total===0;
+  $('statistics-reset').hidden=hosted;$('statistics-undo').hidden=hosted;
+  document.querySelector('.statistics-guide').hidden=hosted;renderCommunityStatus();
   $('statistics-scope-note').textContent=stage==='all'?t('전체 확률: 1~5단계와 단계 미상 기록을 모두 포함합니다. 단계별 기록을 중복해서 더하지 않습니다.'):stage==='unknown'?t('단계 미상: 단계 정보 없이 저장된 기존 기록과 줄 수를 모를 때의 기록입니다. 전체 확률에도 포함됩니다.'):t`${stage}단계 확률: 이 단계에서 나온 조각만을 분모로 계산합니다. 일반 출현과 바꾸기 결과는 각각 따로 집계합니다.`;
   const body=$('statistics-rows'),existing=new Map([...body.children].map(tr=>[tr.dataset.key,tr]));
   const editing=body.contains(document.activeElement),keys=new Set(rows.map(row=>JSON.stringify(row.blockId)));
@@ -203,13 +221,13 @@ function renderStatistics() {
       cell.firstChild.textContent=observedPercent(row[source],totals[source]);
       const unit=cell.querySelector('.statistics-count>span');if(unit)unit.textContent=t('회');
       if(source==='total')cell.lastChild.textContent=t`${row.total.toLocaleString()}회`;
-      else {const input=cell.querySelector('input');input.setAttribute('aria-label',t`${row.name} ${source==='normal'?t('일반'):t('바꾸기')} 출현 횟수`);if(input!==document.activeElement){input.value=row[source];input.removeAttribute('aria-invalid');}}
+      else {const input=cell.querySelector('input');input.readOnly=hosted;input.setAttribute('aria-label',t`${row.name} ${source==='normal'?t('일반'):t('바꾸기')} 출현 횟수`);if(input!==document.activeElement){input.value=row[source];input.removeAttribute('aria-invalid');}}
     }
     if(body.children[index]!==tr)body.insertBefore(tr,body.children[index]||null);
   });
 }
 function saveInlineCount(blockId,source,input){
-  if(!loaded)return;
+  if(!loaded||hosted)return;
   try{
     if(!input.value.trim())throw new Error(t('횟수는 0 이상의 정수로 입력하세요.'));
     const stage=$('statistics-stage').value,row=statisticsRows(state,stage).rows.find(row=>row.blockId===blockId),value=Number(input.value);
@@ -223,7 +241,7 @@ $('statistics-search').oninput=()=>{if(loaded)renderStatistics();};
 $('statistics-sort').onchange=()=>{if(loaded)renderStatistics();};
 $('statistics-stage').onchange=()=>{if(loaded)renderStatistics();};
 $('statistics-rows').addEventListener('focusout',()=>setTimeout(()=>{if(loaded&&!$('statistics-rows').contains(document.activeElement))renderStatistics();},0));
-$('statistics-reset').onclick=()=>{if(!loaded)return;remember();state=resetStatistics(state);changed({search:false});message(()=>(t('모든 단계와 전체의 일반·바꾸기 통계를 초기화했습니다. 되돌리기로 복구할 수 있습니다.')));};
+$('statistics-reset').onclick=()=>{if(!loaded||hosted)return;remember();state=resetStatistics(state);changed({search:false});message(()=>(t('모든 단계와 전체의 일반·바꾸기 통계를 초기화했습니다. 되돌리기로 복구할 수 있습니다.')));};
 function saveClearedLines(){
   if(!loaded)return;
   const input=$('cleared-lines'),value=input.value.trim()===''?null:Number(input.value);
@@ -269,9 +287,10 @@ function renderTargetStatus(){
     remove.setAttribute('aria-label',t`수동 목표 ${score.toLocaleString()}점 삭제`);return remove;
   }));
 }
-function markSkillIcon(x,y,kind=mode==='icon-dot'?'dot':'reroll'){
+function markSkillIcon(x,y,kind=mode==='icon-erase'?'erase':mode==='icon-dot'?'dot':'reroll'){
   try{
-    const {state:next,expired}=editSkillIcon(state,{x,y,kind},{newlyAppeared:$('icon-entry').value==='new'});
+    if(kind==='erase'){if(!state.skillIcons.some(icon=>icon.x===x&&icon.y===y))return;remember();state=removeSkillIcon(state,x,y);changed();return;}
+    const {state:next,expired}=addSkillIcon(state,{x,y,kind});
     remember();state=next;changed();
     message(()=>(expired?t`새 능력을 표시하고 가장 오래된 ${expired.y+1}행 · ${expired.x+1}열 능력 위치를 지웠습니다.`:t('능력 위치를 저장했습니다. 줄을 지워 획득하면 보유량과 50점을 자동으로 더합니다.')));
   }catch(error){message(()=>(t(error.message)),true);}
@@ -287,7 +306,6 @@ function saveSpawnRemaining(){
 }
 $('skill-spawn-remaining').onchange=saveSpawnRemaining;
 $('skill-spawn-remaining').onkeydown=event=>{if(event.key==='Enter'){event.preventDefault();event.target.blur();}};
-$('forget-icon-order').onclick=()=>{if(!loaded||!state.skillIconOrder?.length)return;remember();state.skillIconOrder=[];changed();message(()=>(t('현재 능력은 순서 모름으로 설정했습니다. 사라진 위치를 직접 지워 주세요.')));};
 function createBoard() {
   const grid=$('board-grid');grid.style.setProperty('--cols',state.cols);grid.replaceChildren();
   for(let y=0;y<state.rows;y++)for(let x=0;x<state.cols;x++) {
@@ -320,18 +338,17 @@ function renderBoard() {
   $('board-count').textContent=t`${state.cols} × ${state.rows} · ${count}칸`;
   $('mode-paint').classList.toggle('selected',mode==='paint');$('mode-erase').classList.toggle('selected',mode==='erase');
   $('mode-paint').setAttribute('aria-pressed',String(mode==='paint'));$('mode-erase').setAttribute('aria-pressed',String(mode==='erase'));
-  for(const id of ['icon-dot','icon-reroll']){$(`mode-${id}`).classList.toggle('selected',mode===id);$(`mode-${id}`).setAttribute('aria-pressed',String(mode===id));}
+  for(const id of ['icon-dot','icon-reroll','icon-erase']){$(`mode-${id}`).classList.toggle('selected',mode===id);$(`mode-${id}`).setAttribute('aria-pressed',String(mode===id));}
   $('icon-count').textContent=t`${state.skillIcons?.length||0} / 3개`;
   const unknown=(state.skillIcons?.length||0)-(state.skillIconOrder?.length||0);
-  $('icon-order-status').textContent=unknown?t`${unknown}개 순서 모름 · 사라진 위치는 수동 제거`:t('새 능력의 등장 순서를 기록하면 오래된 위치를 자동 제거합니다.');
-  $('forget-icon-order').disabled=!state.skillIconOrder?.length;
+  $('icon-order-status').textContent=unknown?t`${unknown}개 순서 모름 · 사라진 위치는 수동 제거`:t('추가한 능력은 항상 새 능력입니다. 3개를 초과하면 가장 오래된 위치를 지웁니다.');
   $('placement-tools').hidden=!placement;
   if(placement)$('placement-name').textContent=t`${slotName(state.slots[placement.index])} · 왼쪽 위를 기준으로 배치`;
   $('rotate-placement').disabled=!state.options.rotate;$('flip-placement').disabled=!state.options.reflect;
   $('board-caption').textContent=all?(unordered?t('전체 추천 · 순서 상관없음. 색으로 구분된 위치에 모두 놓으세요.'):t`전체 추천 · 1번부터 ${result.moves.length}번까지 순서대로 놓으세요.${result.skillsUsed.dot?t(' 보라색은 점 찍기입니다.'):''} 한 칸의 여러 번호는 줄 제거 후 다시 쓰는 위치입니다. 줄 제거 후 다른 칸은 제자리에 유지됩니다.`):selected?(unordered?t`${moveName(selected)} 위치 미리보기 · 순서 상관없음.`:t`${preview+1}수 미리보기 · ${moveName(selected)} · ${preview?t('앞선 배치를 반영한 예상 보드입니다.'):t('번호가 적힌 칸이 추천 위치입니다.')} 밑줄은 제거될 행입니다.`):placement?t('블록의 왼쪽 위 기준점을 클릭하세요. 겹치거나 보드 밖이면 배치되지 않습니다.'):mode==='erase'?t('클릭·드래그로 칸을 지우세요.'):t('클릭·드래그로 현재 블록을 입력하세요. 다시 클릭하면 지워집니다.');
 }
 function renderRecommendations() {
-  if(mode.startsWith('icon-'))$('board-caption').textContent=t`${mode==='icon-dot'?t('점 찍기'):t('바꾸기')} 능력이 있는 칸을 누르세요. 같은 종류를 다시 누르면 표시를 지웁니다. 블록은 바뀌지 않습니다.`;
+  if(mode.startsWith('icon-'))$('board-caption').textContent=mode==='icon-erase'?t('지울 능력 위치를 누르세요. 블록과 보유 스킬은 그대로입니다.'):t('능력이 있는 칸을 누르세요. 추가할 때마다 가장 새 능력으로 기록합니다.');
   else if(result?.target?.hit)$('board-caption').textContent=t`목표 ${result.target.hit.toLocaleString()}점은 ${result.target.hitStep}번까지입니다. 그 뒤의 추천은 계속 플레이할 때만 놓으세요.`;
   else if(targetPaused)$('board-caption').textContent=t('목표 점수에 도달했습니다. 계속하려면 남은 조각으로 다시 추천하세요.');
   const unordered=isOrderIndependent(result,state.cols);
@@ -481,7 +498,8 @@ $('block-form').addEventListener('submit',event=>{
   if(!editorId&&state.blocks.length>=500){setEditorError(()=>t('블록은 최대 500개까지 저장할 수 있습니다.'));return;}
   const cells=normalize(editorCells()),duplicate=state.blocks.find(b=>b.id!==editorId&&shapeKey(b.cells)===shapeKey(cells));
   if(duplicate){setEditorError(()=>t`회전·반전으로 같은 모양이 “${duplicate.name}”으로 저장되어 있습니다. 목록에서 중복 선택할 수 있습니다.`);return;}
-  remember();const block={id:editorId||uid(),name,cells};const index=state.blocks.findIndex(b=>b.id===editorId);if(index>=0)state.blocks[index]=block;else state.blocks.push(block);
+  const previous=state.blocks.find(b=>b.id===editorId),newIdentity=hosted&&previous&&shapeKey(previous.cells)!==shapeKey(cells);
+  remember();const block={id:newIdentity?uid():editorId||uid(),name,cells};const index=state.blocks.findIndex(b=>b.id===editorId);if(index>=0)state.blocks[index]=block;else state.blocks.push(block);
   $('block-dialog').close();changed({search:false});message(()=>(t`${name}을 저장했습니다. 현재 보유 중인 조각은 선택 당시 모양을 유지합니다.`));
 });
 $('delete-block').onclick=()=>{remember();state.blocks=state.blocks.filter(b=>b.id!==editorId);$('block-dialog').close();changed({search:false});message(()=>(t('목록에서 삭제했습니다. 되돌리기로 복구할 수 있습니다.')));};
@@ -508,7 +526,7 @@ function solveBoard() {
   };
   worker.onerror=()=>{if(id!==generation)return;invalidate();render();message(()=>(t('탐색 중 오류가 발생했습니다. 다시 시도해 주세요.')),true);};
   searchTimer=setTimeout(()=>finish(latest?{result:{...latest,timedOut:true,duration:wallLimit}}:{error:t('1초 제한에 도달했습니다. 보드를 확인한 뒤 다시 계산해 주세요.')}),wallLimit);
-  worker.postMessage({id,input:{board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:state.statistics,clearedLines:state.clearedLines,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,manualTargets:state.manualTargets,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}}});render();
+  worker.postMessage({id,input:{board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:solverStatistics(),clearedLines:state.clearedLines,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,manualTargets:state.manualTargets,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}}});render();
 }
 function finishTarget(){
   try{
@@ -589,6 +607,7 @@ $('clear-editor').onclick=()=>{dots.clear();renderDots();};$('rotate-editor').on
 $('mode-paint').onclick=()=>setMode('paint');$('mode-erase').onclick=()=>setMode('erase');$('cancel-placement').onclick=()=>setMode('paint');$('rotate-placement').onclick=()=>transformPlacement();$('flip-placement').onclick=()=>transformPlacement(true);
 $('mode-icon-dot').onclick=()=>setMode(mode==='icon-dot'?'paint':'icon-dot');
 $('mode-icon-reroll').onclick=()=>setMode(mode==='icon-reroll'?'paint':'icon-reroll');
+$('mode-icon-erase').onclick=()=>setMode(mode==='icon-erase'?'paint':'icon-erase');
 $('clear-icons').onclick=()=>{if(!loaded||!state.skillIcons?.length)return;remember();state.skillIcons=[];state.skillIconOrder=[];changed();message(()=>(t('표시한 능력 위치를 모두 지웠습니다. 보유 스킬과 점수는 그대로입니다.')));};
 $('finish-target').onclick=finishTarget;
 $('clear-board').onclick=()=>{remember();state.board=Array(state.rows).fill(0);placement=null;hover=null;changed();message(()=>(t('보드를 비웠습니다. 잘못 비웠다면 되돌리기를 누르세요.')));};
@@ -693,9 +712,9 @@ document.addEventListener('keydown',event=>{
   if(activeScreen==='statistics'){if(event.key==='Escape')switchInput(inputMode);return;}
   if(['1','2','`'].includes(event.key)&&pointer){
     const cell=document.elementFromPoint(pointer.x,pointer.y)?.closest('#board-grid .board-cell');if(!cell)return;
-    event.preventDefault();const x=+cell.dataset.x,y=+cell.dataset.y,existing=state.skillIcons.find(icon=>icon.x===x&&icon.y===y);
-    if(event.key==='`'){if(existing)markSkillIcon(x,y,existing.kind);}
-    else{const kind=event.key==='1'?'dot':'reroll';if(existing?.kind!==kind)markSkillIcon(x,y,kind);}
+    event.preventDefault();const x=+cell.dataset.x,y=+cell.dataset.y;
+    if(event.key==='`')markSkillIcon(x,y,'erase');
+    else markSkillIcon(x,y,event.key==='1'?'dot':'reroll');
     return;
   }
   // Keep native Enter activation for other buttons, links and disclosures.
@@ -706,12 +725,24 @@ window.addEventListener('beforeunload',event=>{if(revision!==savedRevision){even
 async function boot() {
   document.querySelector('main').inert=true;$('new-block').disabled=true;
   try {
-    const response=await fetch('/api/state');const data=await response.json();if(!response.ok)throw new Error(data.error||t('저장 파일을 읽지 못했습니다.'));state=data;
-    stagePersistenceSupported=Object.hasOwn(data,'clearedLines')&&Object.hasOwn(data,'currentScore')&&Object.hasOwn(data,'targetEnabled')&&Array.isArray(data.manualTargets)&&typeof data.quickInput==='boolean'&&Array.isArray(data.skillIcons)&&Array.isArray(data.skillIconOrder)&&Object.hasOwn(data,'skillSpawnRemaining')&&data.options?.strategyVersion===3&&data.captureStatsVersion===1;
-    let draft;try{draft=JSON.parse(localStorage.getItem(DRAFT));}catch{}
-    if(draft&&!stagePersistenceSupported){state=draft;message(()=>(t('임시 보관한 데이터를 복구했습니다. 통계와 알고리즘 설정 저장을 위해 서버를 다시 시작해 주세요.')),true);}
-    else if(draft){const check=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});if(check.ok){state=draft;try{localStorage.removeItem(DRAFT);}catch{}message(()=>(t('이전에 저장하지 못한 변경을 복구해 파일에 저장했습니다.')));}else message(()=>(t('임시 데이터의 형식이 맞지 않아 기존 저장 파일을 불러왔습니다.')),true);}
-    else message(()=>(state.blocks.length?t('저장한 블록과 보드를 불러왔습니다. 게임에 나온 세 조각을 선택하세요.'):t('블록 만들기에서 모양을 등록하세요. 첨부 화면의 예시 블록으로 시작할 수도 있습니다.')));
+    let draft;
+    if(hosted){
+      const response=await fetch('/example-blocks.json');if(!response.ok)throw new Error(t('예제 목록을 읽지 못했습니다.'));
+      communityCatalogue=(await response.json()).blocks;browserSession=new BrowserSession(communityCatalogue);state=browserSession.load();
+      communitySync=new CommunitySync(browserSession,{onUpdate:data=>{communityStatistics=data.statistics;if(loaded)renderStatistics();},onStatus:status=>{communityStatus=status;renderCommunityStatus();}});
+      communitySync.refresh();communitySync.flush();
+      setInterval(()=>{if(document.visibilityState==='visible'){communitySync.refresh();communitySync.flush();}},30000);
+      window.addEventListener('online',()=>{communitySync.refresh();communitySync.flush();});
+      window.addEventListener('storage',event=>{if(event.key!==SESSION_KEY)return;if(revision!==savedRevision){message(()=>t('다른 탭에서 진행 상태가 변경되었습니다. 새로고침해 최신 상태를 불러오세요.'),true);return;}try{state=browserSession.load();invalidate();placement=null;hover=null;history=[];render();communitySync.flush();}catch(error){message(()=>t(error.message),true);}});
+      message(()=>t('진행 상태는 브라우저에 저장됩니다. 확정된 출현 기록만 사이트 공용 통계에 합산합니다.'));
+    }else{
+      const response=await fetch('/api/state');const data=await response.json();if(!response.ok)throw new Error(data.error||t('저장 파일을 읽지 못했습니다.'));state=data;
+      stagePersistenceSupported=Object.hasOwn(data,'clearedLines')&&Object.hasOwn(data,'currentScore')&&Object.hasOwn(data,'targetEnabled')&&Array.isArray(data.manualTargets)&&typeof data.quickInput==='boolean'&&Array.isArray(data.skillIcons)&&Array.isArray(data.skillIconOrder)&&Object.hasOwn(data,'skillSpawnRemaining')&&data.options?.strategyVersion===3&&data.captureStatsVersion===1;
+      try{draft=JSON.parse(localStorage.getItem(DRAFT));}catch{}
+      if(draft&&!stagePersistenceSupported){state=draft;message(()=>(t('임시 보관한 데이터를 복구했습니다. 통계와 알고리즘 설정 저장을 위해 서버를 다시 시작해 주세요.')),true);}
+      else if(draft){const check=await fetch('/api/state',{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(draft)});if(check.ok){state=draft;try{localStorage.removeItem(DRAFT);}catch{}message(()=>(t('이전에 저장하지 못한 변경을 복구해 파일에 저장했습니다.')));}else message(()=>(t('임시 데이터의 형식이 맞지 않아 기존 저장 파일을 불러왔습니다.')),true);}
+      else message(()=>(state.blocks.length?t('저장한 블록과 보드를 불러왔습니다. 게임에 나온 세 조각을 선택하세요.'):t('블록 만들기에서 모양을 등록하세요. 첨부 화면의 예시 블록으로 시작할 수도 있습니다.')));
+    }
     state.captureStatsVersion=1;state.skills=skillCounts(state.skills);
     state.statistics??=emptyStatistics();
     state.clearedLines??=null;
@@ -720,16 +751,16 @@ async function boot() {
     const priorOptions=state.options||{},correctedGravity=priorOptions.gravity!==false;
     const upgradedStrategy=priorOptions.strategyVersion!==3||priorOptions.solverProfile!=='fast'||priorOptions.timeLimit!==850;
     state.options={solverProfile:'fast',rotate:priorOptions.rotate!==false,reflect:priorOptions.reflect!==false,gravity:false,timeLimit:850,strategyVersion:3};
-    loaded=true;$('save-status').textContent=t('파일에 저장됨');render();document.querySelector('main').inert=false;$('new-block').disabled=false;
+    loaded=true;$('save-status').textContent=hosted?t('브라우저에 저장됨'):t('파일에 저장됨');render();document.querySelector('main').inert=false;$('new-block').disabled=false;
     switchInput(['manual','capture','statistics'].includes(location.hash.slice(1))?location.hash.slice(1):'manual',{navigate:false,focus:false});
     $('stage-server-warning').hidden=stagePersistenceSupported;
     if(!stagePersistenceSupported){$('save-status').textContent=t('서버 재시작 필요');$('save-status').classList.add('error');if(draft)dirty();}
     if(correctedGravity){dirty();message(()=>(t('줄 제거 후 나머지 칸을 유지하도록 설정을 바로잡았습니다. 이미 어긋난 보드는 화면공유 탭에서 현재 게임 이미지를 붙여넣어 다시 맞춰 주세요.')));}
     else if(upgradedStrategy){dirty();message(()=>(t('1초 이내 추천으로 업데이트했습니다. 저장한 블록과 보드는 그대로 유지됩니다.')));}
-  }catch(error){message(()=>(t`${t(error.message)} 서버를 실행한 뒤 새로고침해 주세요.`),true);$('save-status').textContent=t('연결 실패');$('save-status').classList.add('error');}
+  }catch(error){message(()=>(hosted?t`${t(error.message)} 브라우저 저장소와 연결 상태를 확인한 뒤 새로고침해 주세요.`:t`${t(error.message)} 서버를 실행한 뒤 새로고침해 주세요.`),true);$('save-status').textContent=t('연결 실패');$('save-status').classList.add('error');}
 }
 $('language').value=getLanguage();
-$('language').onchange=event=>setLanguage(event.target.value);
+$('language').onchange=event=>{if(hosted){const language=event.target.value;setLanguage(language);location.assign((language==='en'?'/en/':'/')+location.hash);}else setLanguage(event.target.value);};
 onLanguageChange(()=>{
   const saveStatus=$('save-status').textContent;
   refreshStaticLanguage();$('language').value=getLanguage();
@@ -737,5 +768,5 @@ onLanguageChange(()=>{
   $('save-status').textContent=t(saveStatus);
   if($('block-dialog').open){$('dialog-title').textContent=editorId?t('블록 수정'):t('블록 만들기');renderDots();setEditorError(editorError);}
 });
-setupStatisticsShare({getState:()=>loaded?state:null,getStage:()=>$('statistics-stage').value,getSort:()=>$('statistics-sort').value});
+setupStatisticsShare({getState:()=>loaded?statisticsState():null,getStage:()=>$('statistics-stage').value,getSort:()=>$('statistics-sort').value});
 boot();

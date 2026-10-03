@@ -575,5 +575,21 @@ export default {
   "보유 조각 ID가 중복됩니다.": "Duplicate selected-piece IDs.",
   "다른 사이트에서는 저장할 수 없습니다.": "Saving from another site is not allowed.",
   "저장 데이터가 너무 큽니다.": "The save data is too large.",
-  "저장 파일을 읽거나 쓸 수 없습니다. data 폴더의 권한과 state.json을 확인하세요.": "Could not read or write the save file. Check the data directory permissions and state.json."
+  "저장 파일을 읽거나 쓸 수 없습니다. data 폴더의 권한과 state.json을 확인하세요.": "Could not read or write the save file. Check the data directory permissions and state.json.",
+  "◎ 점 찍기 (1)": "◎ Dot (1)",
+  "↔ 바꾸기 (2)": "↔ Reroll (2)",
+  "스킬 지우기 (`)": "Remove ability (`)",
+  "추가한 능력은 항상 새 능력입니다. 3개를 초과하면 가장 오래된 위치를 지웁니다.": "Every addition is a new ability. A fourth marker replaces the oldest.",
+  "지울 능력 위치를 누르세요. 블록과 보유 스킬은 그대로입니다.": "Click an ability marker to remove it. Board cells and inventory are unchanged.",
+  "능력이 있는 칸을 누르세요. 추가할 때마다 가장 새 능력으로 기록합니다.": "Click the ability cell. Every addition is recorded as the newest ability.",
+  "추가한 능력은 항상 가장 새 능력으로 기록합니다. 같은 칸에 다시 추가하면 종류와 등장 순서를 갱신합니다. 3개를 초과하면 가장 오래된 위치를 지웁니다. 위치를 지울 때는 스킬 지우기 (`)를 사용하세요. 표시한 능력을 줄 제거로 얻으면 스킬 1개와 50점을 자동 반영합니다. 일반 조각 배치만 횟수에 포함하며, 1회 뒤에는 다시 7회로 돌아갑니다. 새 능력 위치는 직접 표시해 주세요.": "Each addition is the newest ability. Adding at the same cell updates its type and age. A fourth marker removes the oldest. Use Remove ability (`) to delete a marker. Collecting a marked ability adds one skill and 50 points. Only normal placements count toward the next spawn; after 1, the counter returns to 7. Mark newly appeared abilities yourself.",
+  "사이트 공용 통계 · 확정한 조각의 종류·단계·횟수만 합산합니다. 진행 상태는 이 브라우저에 저장됩니다.": "Shared site statistics · Only confirmed shape, stage and draw counts are combined. Progress is saved in this browser.",
+  "사이트 공용 통계 동기화 중…": "Syncing shared statistics…",
+  "공용 통계 연결 대기 중 · 진행 상태와 전송할 기록은 브라우저에 보관됩니다.": "Shared statistics offline · Progress and pending counts are kept in this browser.",
+  "{0} 브라우저 저장소와 연결 상태를 확인한 뒤 새로고침해 주세요.": "{0} Check browser storage and connectivity, then refresh.",
+  "브라우저에 저장됨": "Saved in this browser",
+  "브라우저 저장 실패": "Browser save failed",
+  "브라우저 저장 형식을 읽을 수 없습니다.": "Could not read this browser save.",
+  "다른 탭에서 진행 상태가 변경되었습니다. 새로고침해 최신 상태를 불러오세요.": "Progress changed in another tab. Refresh to load the latest save.",
+  "진행 상태는 브라우저에 저장됩니다. 확정된 출현 기록만 사이트 공용 통계에 합산합니다.": "Progress is saved in this browser. Only confirmed draw counts contribute to shared statistics."
 };

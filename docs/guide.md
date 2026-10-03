@@ -75,11 +75,11 @@ A reroll outcome is unknown until you perform it. Follow the recommended prefix 
 
 The helper can suggest a reroll while the current pieces still fit if sampled replacements offer better placement space. It also gives scarce dots more value as a reserve for difficult gaps. A proposed skill use is applied only when you confirm it.
 
-The board tools **◎ Dot** and **↔ Reroll** mark ability locations. Selecting the same type on the same cell removes its marker. Occupied cells may also contain markers. Clearing a marked row adds the ability and 50 points when the inventory rules permit acquisition.
+The board tools **◎ Dot (1)** and **↔ Reroll (2)** mark ability locations. **Remove ability (`)** deletes a marker. Adding at the same cell replaces its type and records it as the newest arrival. Occupied cells may also contain markers. Clearing a marked row adds the ability and 50 points when the inventory rules permit acquisition.
 
 Ordinary piece placements advance the ability timer; dot skills do not. Enter the remaining count in **Placements until spawn**. Every seventh ordinary placement can create an ability, and at most three remain on the board. At seven held skills, new icons do not appear. Clearing a marked row at capacity leaves the uncollected icon at its original position without adding points. A later clear can collect it after a skill has been spent.
 
-Choose **Existing · unknown order** when the creation order is unknown and remove vanished markers manually. Use **New arrival · track order** for subsequent abilities. Once all remaining creation orders are known, a fourth arrival removes the oldest. Future locations are not predicted.
+Every manual addition is treated as a new arrival. A fourth marker removes the oldest. Legacy markers without an arrival record are ordered by their saved list order, before newly added markers. Delete and re-add a marker to correct its age. Future locations are not predicted.
 
 ## Scoring and targets
 
@@ -149,7 +149,7 @@ At the start of a new game, set score and cleared lines to zero. Clearing the bo
 
 The operating system's reduced-motion preference disables decorative transitions.
 
-Ability shortcuts edit board markers, leaving held inventory and occupied cells unchanged. They follow the selected **Ability to add** arrival-order setting. Shortcuts are ignored in other input fields and dialogs; Enter keeps its normal behavior on action buttons. During manual placement, R and F retain their transformation actions.
+Ability shortcuts edit board markers, leaving held inventory and occupied cells unchanged. Every addition is the newest arrival; deletion is a separate action. Shortcuts are ignored in other input fields and dialogs; Enter keeps its normal behavior on action buttons. During manual placement, R and F retain their transformation actions.
 
 ## Troubleshooting
 
@@ -158,3 +158,7 @@ If the game panel moves inside a shared window, press recognition again. When th
 If the port is occupied, check for an existing server. In PowerShell, set `$env:PORT=3211`, then run `npm start`. On macOS/Linux, use `PORT=3211 npm start`.
 
 If a save-format warning appears, stop and restart the server and reload the page. For a frontend-only update, Ctrl+Shift+R refreshes the files. Reload after a library migration before making more edits in an older tab.
+
+## Hosted version
+
+The public service saves progress in browser storage, separately for each domain and browser. Confirmed draw counts contribute to a shared statistics database across the four domains. The statistics screen and forum export show those public totals; visitors cannot edit or reset them directly. Undo corrects only that browser's contribution. Game reset keeps observations. Shared counts are also used for placement forecasts. No local save files are uploaded when the service is deployed. See [hosting](hosting.md) for operations and data handling.

@@ -41,3 +41,20 @@ export function editSkillIcon(state,icon,{newlyAppeared=false}={}){
   }
   return {state:{...state,skillIcons:icons,skillIconOrder:order},expired};
 }
+
+// Manual additions are always new appearances. Replacing a marker resets its
+// age; deletion is a separate action. Legacy unknown markers expire first.
+export function addSkillIcon(state,icon){
+  const [clean]=validateSkillIcons([icon],state.cols,state.rows),key=iconKey(clean);
+  const icons=(state.skillIcons||[]).filter(item=>iconKey(item)!==key);
+  const known=remainingIconOrder(state).filter(item=>item!==key);
+  const order=[...icons.map(iconKey).filter(item=>!known.includes(item)),...known];
+  let expired=null;
+  if(icons.length===3){const oldest=order.shift();[expired]=icons.splice(icons.findIndex(item=>iconKey(item)===oldest),1);}
+  icons.push(clean);order.push(key);
+  return {state:{...state,skillIcons:icons,skillIconOrder:order},expired};
+}
+export function removeSkillIcon(state,x,y){
+  const icons=(state.skillIcons||[]).filter(icon=>icon.x!==x||icon.y!==y);
+  return {...state,skillIcons:icons,skillIconOrder:remainingIconOrder(state,icons)};
+}
