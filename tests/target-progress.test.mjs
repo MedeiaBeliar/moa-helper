@@ -81,6 +81,45 @@ test('TTY display redraws its own region and restores the cursor on close',()=>{
   assert.equal(process.listenerCount('exit'),listeners);assert.match(output,/사망 확인/);
 });
 
+test('TTY events render every completed set immediately, even within one timer interval',()=>{
+  const writes=[],stream={isTTY:true,columns:120,rows:60,write:text=>writes.push(text)};
+  const display=createProgressDisplay({stream,intervalMs:60000});
+  try{
+    for(const completedBatches of [1,2,3,4])display.update(snapshot([game({completedBatches})]));
+    const frames=writes.filter(text=>text.includes('현재'));
+    assert.equal(frames.length,4);
+    for(let index=0;index<frames.length;index++)assert.ok(frames[index].includes(`${index+1}세트`));
+    const count=writes.length;display.update(snapshot([game({completedBatches:4})]));
+    assert.equal(writes.length,count,'identical snapshots do not flicker');
+  }finally{display.close();}
+});
+
+test('active calculation time advances while the score is unchanged and abilities stay visible',()=>{
+  const state=snapshot([game({calculationStartedAt:1000,skills:{dot:2,reroll:4},dotsUsed:8,rerollsUsed:13,
+    boardIcons:3,skillsAcquired:27,spawnRemaining:4})]);
+  const firstFrame=renderProgress(state,{now:1100}),nextFrame=renderProgress(state,{now:1300});
+  assert.match(firstFrame,/계산 중 0\.1초/);assert.match(nextFrame,/계산 중 0\.3초/);
+  assert.match(nextFrame,/능력: 점 2 · 바꾸기 4 \/ 7 · 사용 8 \/ 13/);
+  assert.match(nextFrame,/보드 아이콘 3 \/ 3 · 획득 27 · 생성까지 4배치/);
+  state.games[0].skills.reroll=5;
+  assert.match(renderProgress(state),/생성 중단/);
+});
+
+test('a standard 80 by 24 terminal keeps both 500k games visible without rotating pages',()=>{
+  let output='';const stream={isTTY:true,columns:80,rows:24,write:text=>{output+=text;}};
+  const state={...snapshot(['1-target','2-target'].map(gameId=>game({gameId,score:450001,hits:TARGET_SCORES,
+    skills:{dot:2,reroll:4},dotsUsed:28,rerollsUsed:113,boardIcons:3,skillsAcquired:147,spawnRemaining:4}))),
+    stopAtCap:true,maxSpeed:true};
+  const display=createProgressDisplay({stream});
+  try{
+    display.update(state);
+    assert.match(output,/1-target/);assert.match(output,/2-target/);
+    assert.doesNotMatch(output,/\[\d+\/\d+\] 5s/);
+    assert.ok(output.split('\n').length<=24,output);
+    assert.match(output,new RegExp(`도달 ${TARGET_SCORES.length}개`));
+  }finally{display.close();}
+});
+
 test('small terminals page tall dashboards instead of scrolling duplicate progress fragments',()=>{
   let output='';const stream={isTTY:true,columns:70,rows:18,write:text=>{output+=text;}};
   const display=createProgressDisplay({stream});

@@ -171,8 +171,7 @@ export function searchPlacements(input,{deadline=performance.now()+2000,width=10
     let iconMask=parent.iconMask,acquiredCount=parent.acquiredCount,held=initialHeld-parent.dots-Number(dot)+acquiredCount;
     const acquiredIcons=skillIcons.length&&cleared.length?[]:noAcquiredIcons;
     if(cleared.length)for(let i=0;i<skillIcons.length;i++)if(!(iconMask&(1<<i))&&cleared.includes(skillIcons[i].y)){
-      iconMask|=1<<i;
-      if(held<7){acquiredCount++;held++;acquiredIcons.push(skillIcons[i]);}
+      if(held<7){iconMask|=1<<i;acquiredCount++;held++;acquiredIcons.push(skillIcons[i]);}
     }
     const score=parent.score+placement.area+300*cleared.length*cleared.length+acquiredIcons.length*50;
     let targetHit=parent.targetHit,targetStep=parent.targetStep;

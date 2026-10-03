@@ -53,60 +53,75 @@ function statusText(status){
     'cap-reached':'50만점 달성',completed:'완료',paused:'일시 대기'})[status]??clean(status??'대기 중');
 }
 
-export function renderProgress(snapshot={}, {width=100}={}){
+export function renderProgress(snapshot={}, {width=100,compact=false,now=Date.now()}={}){
   width=Math.max(12,Math.floor(Number.isFinite(width)?width:100));
   const games=Array.isArray(snapshot.games)?snapshot.games:[],lines=[];
   const add=text=>lines.push(...wrapLine(text,width));
-  add(`목표 점수 병렬 테스트 · ${clean(snapshot.runId)||'준비 중'}`);
-  add(`동시 계산 상한 ${number(snapshot.limit)}개 · 총 ${number(snapshot.jobs??games.length)}게임 · ${statusText(snapshot.status??'running')}`);
-  if(snapshot.maxSpeed)add('최고속도 · 동시 계산 2개 · 휴식·자동 감속 없음');
+  add(compact?`500k 테스트 · ${number(snapshot.jobs??games.length)}게임 · ${statusText(snapshot.status??'running')}`:`목표 점수 병렬 테스트 · ${clean(snapshot.runId)||'준비 중'}`);
+  if(!compact){
+    add(`동시 계산 상한 ${number(snapshot.limit)}개 · 총 ${number(snapshot.jobs??games.length)}게임 · ${statusText(snapshot.status??'running')}`);
+    if(snapshot.maxSpeed)add('최고속도 · 동시 계산 2개 · 휴식·자동 감속 없음');
+  }
   const cpu=Number.isFinite(snapshot.cpuPercent)?`${Math.max(0,snapshot.cpuPercent).toFixed(1)}%`:'측정 중';
   const memory=Number.isFinite(snapshot.memoryFreeGiB)?`${snapshot.memoryFreeGiB.toFixed(1)}GiB`:'-';
-  add(`전체 CPU ${cpu} · 여유 메모리 ${memory}${snapshot.priority?` · 우선순위 ${clean(snapshot.priority)}`:''}`);
+  add(`전체 CPU ${cpu} · 여유 메모리 ${memory}${!compact&&snapshot.priority?` · 우선순위 ${clean(snapshot.priority)}`:''}`);
   const progress=games.map(game=>targetProgress(game.score,game.hits));
   let closest=null;
   games.forEach((game,index)=>{
     if(!['running','queued','pending','paused'].includes(game.status)||progress[index].nextTarget===null)return;
     if(closest===null||progress[index].remaining<progress[closest].remaining)closest=index;
   });
-  if(closest!==null)add(`목표에 가장 가까운 게임 ${gameName(games[closest],closest)} → ${number(progress[closest].nextTarget)}점 · ${number(progress[closest].remaining)}점 남음 (점수 차이 기준)`);
-  add(snapshot.stopAtCap?'자동 목표 ON · 50만점 또는 사망에서 종료 · Ctrl+C 저장 후 중지':'목표·50만점 도달 후에도 사망까지 진행 · Ctrl+C 저장 후 중지');
+  if(closest!==null&&!compact)add(`목표에 가장 가까운 게임 ${gameName(games[closest],closest)} → ${number(progress[closest].nextTarget)}점 · ${number(progress[closest].remaining)}점 남음 (점수 차이 기준)`);
+  add(compact?'자동 목표 ON · 최고속도 · Ctrl+C 저장 후 중지':snapshot.stopAtCap?'자동 목표 ON · 50만점 또는 사망에서 종료 · Ctrl+C 저장 후 중지':'목표·50만점 도달 후에도 사망까지 진행 · Ctrl+C 저장 후 중지');
   for(let index=0;index<games.length;index++){
     const game=games[index],item=progress[index];
     lines.push('');
     const mode=game.mode==='target'?'목표 ON':game.mode==='normal'?'목표 OFF':clean(game.mode||'');
-    add(`${gameName(game,index)} ${mode} · 시드 ${clean(game.seed??'-')} · ${statusText(game.status)}`);
+    const activity=game.calculationStartedAt!=null?`계산 중 ${(Math.max(0,now-game.calculationStartedAt)/1000).toFixed(1)}초`:clean(game.activity);
+    add(`${gameName(game,index)}${compact?'':` ${mode} · 시드 ${clean(game.seed??'-')}`} · ${statusText(game.status)}${activity?` · ${activity}`:''}`);
     add(`현재 ${number(item.score)}점 · ${number(game.completedBatches??0)}세트 · 추천 평균 ${number(game.timing?.averageMs)}ms`);
+    if(game.skills){
+      const held=game.skills.dot+game.skills.reroll;
+      add(`능력: 점 ${number(game.skills.dot)} · 바꾸기 ${number(game.skills.reroll)} / 7 · 사용 ${number(game.dotsUsed??0)} / ${number(game.rerollsUsed??0)}`);
+      add(`보드 아이콘 ${number(game.boardIcons??0)} / 3 · 획득 ${number(game.skillsAcquired??0)} · ${held>=7?'생성 중단':`생성까지 ${number(game.spawnRemaining)}배치`}`);
+    }
     if(item.goalScore===null)add('현재 점수 대기 중');
     else{
       const barWidth=Math.max(4,Math.min(36,width-12));
       const ratio=snapshot.stopAtCap?item.score/SCORE_CAP:item.ratio,filled=Math.floor(ratio*barWidth);
-      add(`[${'#'.repeat(filled)}${'-'.repeat(barWidth-filled)}] ${(Math.floor(ratio*1000)/10).toFixed(1)}%`);
-      if(snapshot.stopAtCap)add(`최종 목표 500,000점 · ${number(Math.max(0,SCORE_CAP-item.score))}점 남음`);
+      const bar=`[${'#'.repeat(filled)}${'-'.repeat(barWidth-filled)}] ${(Math.floor(ratio*1000)/10).toFixed(1)}%`;
+      add(compact?`${bar} · ${number(Math.max(0,SCORE_CAP-item.score))}점 남음`:bar);
+      if(snapshot.stopAtCap&&!compact)add(`최종 목표 500,000점 · ${number(Math.max(0,SCORE_CAP-item.score))}점 남음`);
       if(item.capReached)add(game.status==='running'&&!snapshot.stopAtCap?'50만점 상한 도달 · 사망까지 계속 진행':'50만점 상한 도달');
       else add(`${item.nextTarget===null?'점수 상한':'다음 목표'} ${number(item.goalScore)}점 · ${number(item.remaining)}점 남음`);
     }
-    add(item.achieved.length?`도달 기록 ${item.achieved.map(hit=>`[${number(hit.score)}${hit.canStopBelowSkillCap===false?'*':''}]`).join(' ')}`:'도달 기록 없음');
+    const shown=compact?item.achieved.slice(-2):item.achieved;
+    add(shown.length?`${compact?`도달 ${item.achieved.length}개 · 최근`:'도달 기록'} ${shown.map(hit=>`[${number(hit.score)}${hit.canStopBelowSkillCap===false?'*':''}]`).join(' ')}`:'도달 기록 없음');
   }
-  if(progress.some(item=>item.achieved.some(hit=>hit.canStopBelowSkillCap===false)))add('* 실제 점수 도달 시 보유 스킬 7개; 이후 7개 미만에서 같은 점수 확인 시 해제');
-  add(snapshot.stopAtCap?'막대는 50만점까지의 비율입니다. 중간 목표의 정확한 도달 이력은 계속 남습니다.':'막대는 다음 점수까지의 비율입니다. 게임 종료 시점은 예측하지 않습니다.');
+  if(!compact){
+    if(progress.some(item=>item.achieved.some(hit=>hit.canStopBelowSkillCap===false)))add('* 실제 점수 도달 시 보유 스킬 7개; 이후 7개 미만에서 같은 점수 확인 시 해제');
+    add(snapshot.stopAtCap?'막대는 50만점까지의 비율입니다. 중간 목표의 정확한 도달 이력은 계속 남습니다.':'막대는 다음 점수까지의 비율입니다. 게임 종료 시점은 예측하지 않습니다.');
+  }
   return lines.join('\n');
 }
 
 // Only an interactive terminal receives cursor escapes. Redirected output gets
 // sparse snapshots, while close always writes the final available state.
-export function createProgressDisplay({stream=process.stdout,intervalMs=1000}={}){
-  const tty=Boolean(stream.isTTY),delay=Math.max(tty?100:10000,Number(intervalMs)||1000);
+export function createProgressDisplay({stream=process.stdout,intervalMs=100}={}){
+  const tty=Boolean(stream.isTTY),delay=Math.max(tty?100:10000,Number(intervalMs)||100);
   let latest=null,timer=null,closed=false,hidden=false,previousLines=0,lastText=null,lastRender=-Infinity,firstRender=null;
   const restore=()=>{if(hidden){hidden=false;stream.write('\x1b[?25h');}};
-  function paint(force=false){
+  function paint(force=false,immediate=false){
     if(!latest)return;
-    const now=Date.now();if(!force&&now-lastRender<delay)return;
+    const now=Date.now();if(!force&&!immediate&&now-lastRender<delay)return;
     // Keep a column free so terminals never wrap at their right margin.
-    let text=renderProgress(latest,{width:Math.max(12,(stream.columns||100)-1)});
+    const width=Math.max(12,(stream.columns||100)-1);
+    let text=renderProgress(latest,{width,now});
     // A cursor cannot move back into terminal scrollback. Page tall views so
     // frequent updates never accumulate duplicate fragments on short windows.
-    const rows=Math.max(5,(stream.rows||60)-2),full=text.split('\n');
+    const rows=Math.max(5,(stream.rows||60)-2);
+    if(tty&&!force&&latest.stopAtCap&&latest.maxSpeed&&text.split('\n').length>rows)text=renderProgress(latest,{width,compact:true,now});
+    const full=text.split('\n');
     if(tty&&!force&&full.length>rows){
       firstRender??=now;const size=rows-1,pages=Math.ceil(full.length/size),page=Math.floor((now-firstRender)/5000)%pages;
       text=[...full.slice(page*size,(page+1)*size),`[${page+1}/${pages}] 5s`].join('\n');
@@ -121,7 +136,9 @@ export function createProgressDisplay({stream=process.stdout,intervalMs=1000}={}
   }
   return {
     update(snapshot){
-      if(closed)return;latest=snapshot;paint();
+      // Game events redraw immediately. The timer only advances elapsed time
+      // and pages; it must not coalesce multiple completed sets into one frame.
+      if(closed)return;latest=snapshot;paint(false,tty);
       if(!timer){timer=setInterval(()=>paint(),delay);timer.unref?.();}
     },
     close(snapshot){

@@ -30,12 +30,12 @@ export function validateSkillIcons(icons,cols,rows){
   });
 }
 // Collection happens after skill spending and clearing. At capacity, icons on
-// cleared rows disappear without granting another skill or acquisition points.
+// cleared rows remain on the board without granting a skill or points.
 export function collectSkillIcons(icons,cleared,heldAfterSpend){
   const kept=[],acquired=[];let held=heldAfterSpend;
   for(const icon of icons||[]){
     if(!cleared.includes(icon.y)){kept.push(icon);continue;}
-    if(held<7){acquired.push(icon);held++;}
+    if(held<7){acquired.push(icon);held++;}else kept.push(icon);
   }
   return {icons:kept,acquired,held,score:acquired.length*50};
 }

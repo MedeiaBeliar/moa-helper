@@ -17,7 +17,7 @@ Both runs began on empty boards with seed 509 on a Ryzen 5 5600G, 32GB RAM, and 
 
 The input contained 21 historical identities with 599 normal and 18 reroll observations. The model added one prior observation per identity to normal draws and a 30-observation prior following the normal distribution to rerolls. Stage-specific samples were unavailable, so the same overall distribution was used at every stage. This does not reproduce the game's confirmed late-stage difficulty.
 
-These runs excluded the one placement point for dot skills. The current version includes it. Historical scores have not been recomputed. They also predate library consolidation. The table does not contain a completed death comparison under the current rules and library.
+These runs excluded the one placement point for dot skills. The current version includes it. Historical scores have not been recomputed. They also predate library consolidation and the correction that prevents spawns at seven held skills and retains uncollectable board icons. The table does not contain a completed death comparison under the current rules and library.
 
 Calculation time measures one worker round trip. A recommendation after a reroll is a separate call, not the total duration of a set. A separate browser check measured up to 908ms from click to display and 961ms to recover a stalled worker's result. Timing depends on hardware and load.
 

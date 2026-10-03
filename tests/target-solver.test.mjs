@@ -126,11 +126,9 @@ test('a full reroll inventory still requires an actual reroll before any target 
   assert.equal(result.complete,false);assert.equal(result.reroll.reason,'capacity');assert.equal(result.target.status,'fallback');
 });
 
-test('discarded markers do not merge different held-skill counts on the same board',()=>{
-  // Both paths can clear the same marked rows after using the same pieces and
-  // dots. A marker discarded at capacity and one acquired before a dot is spent
-  // leave different inventories. Keeping only the higher-score prefix used to
-  // erase the legal continuation below and reduce the best utility to 1904.
+test('equal boards preserve different uncollected markers and held-skill counts',()=>{
+  // Clearing a marked row at capacity leaves its marker for a later clear.
+  // Geometry alone cannot identify equivalent inventories or continuations.
   const input=source([3,6,1],3,[vertical,domino,square],0,{
     targetEnabled:false,skills:{dot:2,reroll:4},
     skillIcons:[0,1,2].map(y=>({x:0,y,kind:'dot'}))
@@ -141,7 +139,7 @@ test('discarded markers do not merge different held-skill counts on the same boa
   assert.ok(complete,'retain the 2210-point empty-board continuation with six held skills');
   assert.equal(complete.depth,3);assert.equal(complete.dots,2);assert.equal(complete.acquiredCount,2);
   const replay=scoreMoves(input.currentScore,complete.moves,{skills:input.skills,skillIcons:input.skillIcons});
-  assert.equal(replay.score,2210);assert.equal(replay.held,6);assert.deepEqual(replay.icons,[]);
+  assert.equal(replay.score,2210);assert.equal(replay.held,6);assert.deepEqual(replay.icons,[input.skillIcons[0]]);
   let board=input.board;const used=new Set();
   for(const move of complete.moves){
     const placed=place(board,input.cols,move.cells,move.x,move.y);assert.ok(placed);
@@ -149,6 +147,28 @@ test('discarded markers do not merge different held-skill counts on the same boa
     if(move.kind==='piece'){assert.ok(!used.has(move.pieceId));used.add(move.pieceId);}
   }
   assert.equal(used.size,3);assert.deepEqual(board,[0,0,0]);
+});
+
+test('search collects a retained icon on a later clear and agrees with independent scoring',()=>{
+  const input=source([1],2,[unit,unit,unit],0,{
+    targetEnabled:false,skills:{dot:2,reroll:5},skillIcons:[{x:0,y:0,kind:'reroll'}]
+  });
+  const found=searchPlacements(input,{deadline:performance.now()+1000,width:1200,evaluate:()=>0});
+  let delayedCollection=false;
+  for(const candidate of found.candidates){
+    const replay=scoreMoves(0,candidate.moves,{skills:input.skills,skillIcons:input.skillIcons});
+    assert.equal(candidate.score,replay.score);assert.equal(candidate.acquiredCount,replay.acquiredCount);
+    assert.ok(replay.held<7);
+    let clearedBefore=false;
+    for(let index=0;index<candidate.moves.length;index++){
+      const move=candidate.moves[index];
+      assert.deepEqual(move.acquiredIcons,replay.moves[index].acquiredIcons);
+      if(clearedBefore&&move.acquiredIcons.length)delayedCollection=true;
+      if(move.cleared.includes(0))clearedBefore=true;
+    }
+  }
+  assert.ok(delayedCollection,'a clear at capacity must not hide the icon from subsequent search steps');
+  assert.equal(found.candidates[0].score,955);
 });
 
 test('an incomplete exact-score prefix never announces a safe target stop',()=>{

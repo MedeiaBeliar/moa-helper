@@ -29,16 +29,16 @@ export function playMove(game,move,randomIcon,randomType){
   const placed=place(game.board,game.cols,move.cells,move.x,move.y);if(!placed)throw new Error('Collision in simulator');
   if(isDot){game.skills.dot--;game.dotsUsed++;addScore(game,1,'placementScore');}else{piece.used=true;game.placements++;addScore(game,piece.cells.length,'placementScore');}
   game.board=placed.board;game.lines+=placed.cleared.length;game.stage=stageFor(game.lines);addScore(game,300*placed.cleared.length**2,'lineScore');
-  // The user confirmed that clearing an icon at capacity consumes it too.
+  // A full inventory leaves the icon on its original cell, even after a clear.
   const kept=[];
   for(const icon of game.icons){
     if(!placed.cleared.includes(icon.y)){kept.push(icon);continue;}
     if(game.skills.dot+game.skills.reroll<7){game.skills[icon.kind]++;game.skillsAcquired++;addScore(game,50,'acquisitionScore');}
-    else game.expired++;
+    else kept.push(icon);
   }
   game.icons=kept;
   // Resolve the placement/clear first, then spawn on a remaining empty tile.
-  if(!isDot&&game.placements%7===0){
+  if(!isDot&&game.placements%7===0&&game.skills.dot+game.skills.reroll<7){
     const empty=[];for(let y=0;y<game.board.length;y++)for(let x=0;x<game.cols;x++)
       if(!(game.board[y]&(1<<x))&&!game.icons.some(icon=>icon.x===x&&icon.y===y))empty.push({x,y});
     if(empty.length){

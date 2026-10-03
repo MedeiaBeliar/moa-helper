@@ -40,14 +40,19 @@ test('dot placement adds one point alongside clear and acquisition bonuses, with
   playMove(game,{kind:'dot',cells:[[0,0]],x:0,y:0},()=>0,()=>0);
   assert.equal(game.score,500000);assert.equal(game.rawScore,500001);assert.equal(game.placementScore,2);
 });
-test('line clears collect skills and fifty points; at seven icons disappear without another skill',()=>{
+test('at capacity a cleared icon stays on its cell and the seventh placement cannot spawn another',()=>{
   const game=createGame();game.board[0]=511;game.icons=[{x:0,y:0,kind:'reroll'}];game.pieces=[{...dot,id:'x'}];
   playMove(game,{pieceId:'x',cells:[[0,0]],x:9,y:0},()=>0,()=>0);
   assert.equal(game.skills.reroll,1);assert.equal(game.icons.length,0);assert.equal(game.score,351);
-  game.board[0]=511;game.icons=[{x:0,y:0,kind:'dot'}];game.skills={dot:3,reroll:4};game.placements=6;game.pieces=[{...dot,id:'y'}];
+  game.board[0]=511;game.icons=[{x:4,y:0,kind:'dot'}];game.skills={dot:3,reroll:4};game.placements=6;game.pieces=[{...dot,id:'y'}];
   playMove(game,{pieceId:'y',cells:[[0,0]],x:9,y:0},()=>0,()=>0);
-  assert.equal(game.icons.length,1);assert.equal(game.expired,1);assert.equal(game.skills.dot+game.skills.reroll,7);assert.equal(game.spawned,1);assert.equal(game.acquisitionScore,50);
-  assert.deepEqual(game.icons[0],{x:0,y:0,kind:'dot'},'the seventh placement spawns a new icon even when held skills are full');
+  assert.equal(game.icons.length,1);assert.equal(game.expired,0);assert.equal(game.skills.dot+game.skills.reroll,7);assert.equal(game.spawned,0);assert.equal(game.acquisitionScore,50);
+  assert.deepEqual(game.icons[0],{x:4,y:0,kind:'dot'});
+  game.board[0]=511;
+  playMove(game,{kind:'dot',cells:[[0,0]],x:9,y:0},()=>0,()=>0);
+  assert.equal(game.icons.length,0);assert.equal(game.acquisitionScore,100);
+  assert.equal(game.placements,7);assert.equal(game.spawned,0);
+  assert.deepEqual(game.skills,{dot:3,reroll:4},'spending a dot makes room to collect the retained icon');
 });
 test('fourth spawn expires the oldest icon and a 40 percent boundary selects reroll',()=>{
   const game=createGame();game.icons=[{x:5,y:1,kind:'dot'},{x:6,y:1,kind:'dot'},{x:7,y:1,kind:'dot'}];game.placements=6;game.pieces=[{...dot,id:'x'}];
@@ -63,15 +68,31 @@ test('every seventh ordinary placement spawns an icon and only the oldest expire
       game.pieces=[{...dot,id:`p${index}`}];
       // Half-filled rows never clear; icons spawn at the opposite end of the board.
       playMove(game,{pieceId:`p${index}`,cells:[[0,0]],x:index%5,y:Math.floor(index/5)},()=>.999,()=>.4);
-      if((index+1)%7===0)appearances.push({...game.icons.at(-1)});
-      assert.equal(game.spawned,Math.floor((index+1)/7));
+      if(held<7&&(index+1)%7===0)appearances.push({...game.icons.at(-1)});
+      assert.equal(game.spawned,held<7?Math.floor((index+1)/7):0);
       assert.deepEqual(game.icons,appearances.slice(-3));
       assert.equal(game.expired,Math.max(0,appearances.length-3));
       assert.equal(game.score,index+1);assert.equal(game.skillsAcquired,0);
     }
-    assert.equal(appearances.length,4);assert.equal(game.icons.length,3);
-    assert.equal(game.icons.some(icon=>icon.x===appearances[0].x&&icon.y===appearances[0].y),false);
+    assert.equal(appearances.length,held<7?4:0);assert.equal(game.icons.length,held<7?3:0);
+    if(held<7)assert.equal(game.icons.some(icon=>icon.x===appearances[0].x&&icon.y===appearances[0].y),false);
   }
+});
+
+test('collection fills the last inventory slot before the spawn attempt; skipped spawns consume no randomness',()=>{
+  const game=createGame();game.skills={dot:0,reroll:6};game.placements=6;
+  game.icons=[{x:0,y:0,kind:'dot'},{x:2,y:0,kind:'reroll'},{x:5,y:1,kind:'dot'}];
+  game.board[0]=511;game.pieces=[{...dot,id:'x'}];
+  const noDraw=()=>assert.fail('a blocked spawn must not draw a position or type');
+  playMove(game,{pieceId:'x',cells:[[0,0]],x:9,y:0},noDraw,noDraw);
+  assert.deepEqual(game.skills,{dot:1,reroll:6});assert.equal(game.acquisitionScore,50);
+  assert.deepEqual(game.icons,[{x:2,y:0,kind:'reroll'},{x:5,y:1,kind:'dot'}]);
+  assert.equal(game.expired,0);assert.equal(game.spawned,0);
+  // Ordinary placements keep advancing the seven-placement cycle at capacity.
+  game.placements=13;game.pieces=[{...dot,id:'y'}];
+  rerollPiece(game,'y',[dot],[1],()=>0);
+  playMove(game,{pieceId:'y',cells:[[0,0]],x:0,y:2},()=>.999,()=>.4);
+  assert.equal(game.spawned,1);assert.equal(game.icons.length,3);assert.equal(game.icons.at(-1).kind,'reroll');
 });
 
 test('collecting a middle icon preserves age order, and clearing an expired icon location grants no skill or bonus',()=>{

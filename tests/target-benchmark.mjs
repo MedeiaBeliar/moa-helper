@@ -77,7 +77,8 @@ const statistics={entries:catalogue.map(b=>({blockId:b.id,name:b.name,normal:b.n
 const hardware={cpu:cpus()[0]?.model,threads:cpus().length,memoryGiB:Math.round(totalmem()/2**30)};
 const conditions=[
   'Piece placement earns its cell count; a dot earns 1 point. Simultaneous horizontal clears earn 300 × n² points, and each acquired ability earns 50 points.',
-  'An ability spawns every seven ordinary placements. If more than three icons remain, the oldest disappears without a reward.',
+  'Every seventh ordinary placement attempts to spawn an ability after collection, provided fewer than seven skills are held. Dot skills do not advance this counter. A fourth board icon expires the oldest without a reward.',
+  'At seven held skills, icons on cleared rows stay on their original cells without granting a skill or points; no new icon spawns. Spending a skill allows collection on a later clear.',
   'Normal draws, rerolls, icon positions and icon types use independent seeded random streams. Different policies may consume different numbers of draws.',
   'Stage observations use a 30-observation overall prior; missing stages use overall counts. Normal overall counts add one per identity; rerolls use a 30-observation normal-distribution prior.',
   'The draw model and recommendation evaluator share the stage probability model. Each candidate uses the stage reached after its clears.',
@@ -111,7 +112,7 @@ if(resume)for(const job of jobs){
   validateResume(saved,{mode,seed:jobSeed,hashes});assert.equal(saved.gameId,gameId);savedGames.set(gameId,saved);
 }
 console.log(`실행 ID: ${runId}\n입력: ${snapshot.source}\n${pairs}개 시드 / ${jobs.length}게임 / 최대 ${maxParallel}개 ${preset.maxSpeed?'최고속도':'저부하'} 병렬 계산\nCtrl+C: 체크포인트 저장 후 중지\n결과: ${base}-comparison.md\n`);
-updateProgress();const progressTimer=setInterval(updateProgress,1000);progressTimer.unref();
+updateProgress();const progressTimer=setInterval(updateProgress,100);progressTimer.unref();
 
 async function runGame({mode,seed,gameId}){
   const checkpointPath=`${base}-${gameId}-checkpoint.json`,reportPath=`${base}-${gameId}.json`;
@@ -128,6 +129,7 @@ async function runGame({mode,seed,gameId}){
     version:1,gameId,mode,targetEnabled:mode==='target',seed,runId,preset:preset.name,status,deathVerified:status==='dead',score:game.score,scoreCap:500000,rawScoreDiagnosticOnly:game.rawScore,
     completedBatches:game.batches-Number(game.pieces.some(p=>!p.used)),placements:game.placements,lines:game.lines,skills:{...game.skills},
     dotsUsed:game.dotsUsed,rerollsUsed:game.rerollsUsed,skillsAcquired:game.skillsAcquired,remaining:game.pieces.filter(p=>!p.used),board:game.board,
+    boardIcons:game.icons.length,spawnRemaining:7-game.placements%7,
     hits:ledger.hits,exactTargetCount:ledger.hits.length,predictions:ledger.predictions,predictionMisses:ledger.predictionMisses,predictionHits:ledger.predictionHits,
     predictedHitsAtCapacity:ledger.predictedHitsAtCapacity,completedPlansAtCapacity:ledger.completedPlansAtCapacity,
     timing:{calls:ledger.calls,averageMs:Math.round(ledger.totalMs/(ledger.calls||1)),maxMs:Math.round(ledger.maxMs),over1000:ledger.over1000,watchdogs:ledger.watchdogs,
@@ -138,11 +140,17 @@ async function runGame({mode,seed,gameId}){
     normalSamples:catalogue.reduce((s,b)=>s+b.normal,0),rerollSamples:catalogue.reduce((s,b)=>s+b.reroll,0),stageProbabilityModel:drawModel.description,conditions,hardware,hashes,error:failure,
     targetProgress:targetProgress(game.score,ledger.hits),resources:{maxParallel,priority,maxSpeed:preset.maxSpeed},
   };}
-  async function save(status){
+  function publish(status,activity='',calculationStartedAt=null){
     const report=summary(status);
+    liveReports.set(gameId,{...report,activity,calculationStartedAt});updateProgress();
+    return report;
+  }
+  async function save(status){
+    // Present each action/finished set before waiting for checkpoint I/O.
+    const report=publish(status,status==='running'?'저장 중':'');
     await atomicJson(checkpointPath,{version:1,gameId,mode,seed,hashes,startedAt,status,game,rng,
       ledger:{...ledger,activeMs:report.activeMs,cpuMicros:report.processCpuMicros},error:failure});
-    await atomicJson(reportPath,report);latestReports.set(gameId,report);liveReports.set(gameId,report);updateProgress();
+    await atomicJson(reportPath,report);latestReports.set(gameId,report);
     if(process.connected)process.send({type:'progress',gameId,calls:ledger.calls,status,score:game.score});
   }
   async function ready(){
@@ -177,6 +185,7 @@ async function runGame({mode,seed,gameId}){
       if(game.score===expected&&game.skills.dot+game.skills.reroll>=7)ledger.predictedHitsAtCapacity++;
     }
     if(game.score===500000&&!ledger.capReached)ledger.capReached={calls:ledger.calls,batch:game.batches,placements:game.placements};
+    publish('running',kind.includes('reroll')?'바꾸기 반영':kind.includes('dot')?'점 찍기 반영':'배치 반영');
   }
   function audit(){
     let occupied=0;for(let row of game.board)while(row){row&=row-1;occupied++;}
@@ -225,9 +234,9 @@ async function runGame({mode,seed,gameId}){
         ledger.maxBatchMs=Math.max(ledger.maxBatchMs,ledger.currentBatchMs);ledger.currentBatchMs=0;
         deal(game,catalogue,weights(game.stage,'normal'),draws);await save('running');continue;
       }
-      liveReports.set(gameId,{...summary('queued')});updateProgress();
+      publish('queued');
       const decision=await budget.run(async()=>{
-        liveReports.set(gameId,{...summary('running')});updateProgress();
+        publish('running','',Date.now());
         return recommend({board:game.board.slice(),cols:10,pieces:game.pieces.filter(p=>!p.used).map(p=>({...p})),catalogue,statistics,
           currentScore:game.score,clearedLines:game.lines,targetEnabled:mode==='target',skills:{...game.skills},skillIcons:game.icons.map(icon=>({...icon})),options:{rotate:true,reflect:true,gravity:false,timeLimit:850}});
       });

@@ -33,6 +33,12 @@ This preset runs two games concurrently with all automatic targets enabled, usin
 
 Each game ends at 500,000 points or verified death. A cap result is marked `cap-reached`, not `dead`. Reaching an intermediate target is recorded and play continues. The display shows progress toward 500,000, points remaining, the next intermediate target, and exact arrivals for each game. The console stays open after completion.
 
+In an interactive terminal, each placement, dot, reroll, and completed set updates the display immediately, before checkpoint writes. Calculation elapsed time refreshes every 100ms. Short windows use a compact view to keep both games visible, showing the hit count and the two most recent targets; the reports retain every exact arrival. Redirected output uses sparse snapshots instead of cursor control codes.
+
+Both games simulate abilities. Every seventh ordinary placement attempts to spawn an icon on a uniformly selected empty cell, with a 40% chance of a dot and 60% chance of a reroll. A fourth board icon removes the oldest. Clearing its row acquires a skill and 50 points if inventory space is available. At seven held skills, new icons do not spawn and uncollectable icons remain on the board after a clear. Dots cost one held skill and score one placement point without advancing the spawn counter. Rerolls spend a skill and draw a replacement from the observed distribution. The dashboard shows inventory, uses, acquired skills, board icons, and the next spawn count.
+
+Runs from before the capacity-rule correction spawned icons at seven held skills and removed uncollectable icons. Those results use a different model. Start a new run to use the corrected rules; old checkpoints cannot resume under changed algorithm hashes.
+
 Ctrl+C saves checkpoints. Resume with the command printed in the report; the snapshot retains the two-game preset, so it needs no additional settings. A single game may finish before the other. Results are written under `test-results`; this preset does not open a browser or server.
 
 ## Full-game target comparison

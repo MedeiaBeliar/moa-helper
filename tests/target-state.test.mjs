@@ -102,14 +102,24 @@ test('a temporary save reloads score, disabled target mode and manually marked a
   }finally{await rm(directory,{recursive:true,force:true});}
 });
 
-test('only markers in removed rows are acquired, and full-capacity acquisitions disappear',()=>{
+test('only markers in removed rows are acquired, and uncollectable markers stay at capacity',()=>{
   const icons=[{x:0,y:0,kind:'dot'},{x:1,y:0,kind:'reroll'},{x:2,y:2,kind:'dot'}];
   const collected=collectSkillIcons(icons,[0],6);
-  assert.deepEqual(collected.acquired,[icons[0]]);assert.deepEqual(collected.icons,[icons[2]]);
+  assert.deepEqual(collected.acquired,[icons[0]]);assert.deepEqual(collected.icons,[icons[1],icons[2]]);
   assert.equal(collected.held,7);assert.equal(collected.score,50);
   const full=collectSkillIcons(icons,[0],7);
-  assert.deepEqual(full.acquired,[]);assert.deepEqual(full.icons,[icons[2]]);assert.equal(full.score,0);
+  assert.deepEqual(full.acquired,[]);assert.deepEqual(full.icons,icons);assert.equal(full.score,0);
   assert.deepEqual(icons.map(i=>i.y),[0,0,2]);
+});
+
+test('a marker retained at capacity can be collected by a later clear after spending a skill',()=>{
+  const icon={x:0,y:0,kind:'reroll'};
+  const scored=scoreMoves(0,[{cells:unit,cleared:[0]},{kind:'dot',cells:unit,cleared:[0]}],
+    {skills:{dot:1,reroll:6},skillIcons:[icon]});
+  assert.equal(scored.moves[0].acquisitionScore,0);assert.deepEqual(scored.moves[0].acquiredIcons,[]);
+  assert.equal(scored.moves[1].acquisitionScore,50);assert.deepEqual(scored.moves[1].acquiredIcons,[icon]);
+  assert.equal(scored.after,652);assert.equal(scored.acquiredCount,1);assert.deepEqual(scored.icons,[]);
+  assert.deepEqual(scored.skillsAfter,{dot:0,reroll:7});
 });
 
 test('dot spending earns one placement point and precedes collection',()=>{

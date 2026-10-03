@@ -73,7 +73,7 @@ A reroll outcome is unknown until you perform it. Follow the recommended prefix 
 
 The board tools **◎ Dot** and **↔ Reroll** mark ability locations. Selecting the same type on the same cell removes its marker. Occupied cells may also contain markers. Clearing a marked row adds the ability and 50 points when the inventory rules permit acquisition.
 
-Ordinary piece placements advance the ability timer; dot skills do not. Enter the remaining count in **Placements until spawn**. An ability appears every seven ordinary placements, and at most three remain on the board.
+Ordinary piece placements advance the ability timer; dot skills do not. Enter the remaining count in **Placements until spawn**. Every seventh ordinary placement can create an ability, and at most three remain on the board. At seven held skills, new icons do not appear. Clearing a marked row at capacity leaves the uncollected icon at its original position without adding points. A later clear can collect it after a skill has been spent.
 
 Choose **Existing · unknown order** when the creation order is unknown and remove vanished markers manually. Use **New arrival · track order** for subsequent abilities. Once all remaining creation orders are known, a fourth arrival removes the oldest. Future locations are not predicted.
 
