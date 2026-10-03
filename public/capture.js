@@ -1,3 +1,4 @@
+import {t} from './i18n.js';
 import {detectBoards,defaultSlots,recognize,validRect} from './vision.js';
 import {overlayCells,isOrderIndependent} from './plan.js';
 
@@ -9,12 +10,12 @@ export class ScreenCapture {
     this.canvas=$('capture-canvas');this.sensitivity=1;this.calibration=null;
     $('capture-start').onclick=()=>this.start();$('capture-stop').onclick=()=>this.stop();
     $('capture-sample').onclick=()=>this.sample();$('capture-read').onclick=()=>this.analyze();
-    $('capture-locate').onclick=()=>{this.calibration=null;this.latest=null;this.resetPlan();this.draw();this.status('영역을 다시 찾도록 설정했습니다. 인식 버튼을 누르세요.');};
+    $('capture-locate').onclick=()=>{this.calibration=null;this.latest=null;this.resetPlan();this.draw();this.status(()=>(t('영역을 다시 찾도록 설정했습니다. 인식 버튼을 누르세요.')));};
     $('capture-board-choice').onchange=()=>this.selectBoard(+$('capture-board-choice').value);
     $('capture-sensitivity').oninput=()=>{this.sensitivity=+$('capture-sensitivity').value;this.latest=null;$('capture-sensitivity-value').textContent=this.sensitivity.toFixed(2);};
     document.querySelectorAll('[data-capture-region]').forEach(b=>b.onclick=()=>{
       if(!this.hasFrame)return;
-      this.target=b.dataset.captureRegion;this.status(`${b.textContent}의 왼쪽 위에서 오른쪽 아래까지 드래그하세요.`);this.draw();
+      this.target=b.dataset.captureRegion;this.status(()=>(t`${b.textContent}의 왼쪽 위에서 오른쪽 아래까지 드래그하세요.`));this.draw();
       // Calibration controls may be below the preview in a scrollable capture pane.
       this.canvas.scrollIntoView({block:'center',inline:'nearest',behavior:'instant'});
     });
@@ -28,9 +29,9 @@ export class ScreenCapture {
       if(validRect(rect,this.frame)){
         if(this.target==='board')this.calibration={board:rect,slots:defaultSlots(rect,this.callbacks.getState().cols)};
         else if(this.calibration)this.calibration.slots[+this.target]=rect;
-        else {this.status('보드 영역부터 지정하세요.',true);this.target=null;this.draw();return;}
-        this.target=null;this.latest=null;this.resetPlan();this.saveCalibration();this.status('영역을 저장했습니다. 인식 버튼을 눌러 한 번 읽으세요.');
-      }else this.status('영역을 조금 더 크게 지정하세요.',true);
+        else {this.status(()=>(t('보드 영역부터 지정하세요.')),true);this.target=null;this.draw();return;}
+        this.target=null;this.latest=null;this.resetPlan();this.saveCalibration();this.status(()=>(t('영역을 저장했습니다. 인식 버튼을 눌러 한 번 읽으세요.')));
+      }else this.status(()=>(t('영역을 조금 더 크게 지정하세요.')),true);
       this.draw();
     };
     this.canvas.onpointercancel=()=>{this.drag=null;this.draw();};
@@ -46,7 +47,21 @@ export class ScreenCapture {
     window.addEventListener('pagehide',()=>this.stop(false));
     this.controls();
   }
-  status(text,error=false){$('capture-status').textContent=text;$('capture-status').classList.toggle('error',error);}
+  status(text,error=false){this.notice={text,error};this.refreshStatus();}
+  refreshStatus(){if(!this.notice)return;$('capture-status').textContent=t(typeof this.notice.text==='function'?this.notice.text():this.notice.text);$('capture-status').classList.toggle('error',this.notice.error);}
+  renderDetection(){
+    const observation=this.latest;
+    if(!observation?.safe||observation.error){$('capture-detection').textContent='';return;}
+    const description=observation.pieces.map((p,i)=>t`${i+1}번 ${p.status==='used'?t('사용 완료'):t`${p.cells.length}칸`}`).join(' · ');
+    $('capture-detection').textContent=t`격자 점검 ${Math.round(observation.confidence*100)}/100 · ${description}`;
+  }
+  refreshLanguage(){
+    this.controls();this.refreshStatus();this.renderDetection();
+    for(const [i,option]of [...$('capture-board-choice').options].entries()){
+      const board=this.boards?.[i];if(board)option.textContent=t`보드 ${i+1} · 화면 ${board.x>this.frame.width/2?t('오른쪽'):t('왼쪽')}`;
+    }
+    this.draw();
+  }
   resetPlan(){if(!this.pendingReroll||!this.callbacks.getPlan().result?.reroll)this.callbacks.onReset();}
   controls(){
     $('capture-stop').disabled=!this.stream;$('capture-start').disabled=this.starting||false;
@@ -54,10 +69,10 @@ export class ScreenCapture {
     for(const id of ['capture-locate','capture-sensitivity'])$(id).disabled=!this.hasFrame;
     document.querySelectorAll('[data-capture-region]').forEach(b=>b.disabled=!this.hasFrame);
     $('capture-canvas').hidden=!this.hasFrame;this.video.hidden=!this.stream;$('capture-empty').hidden=!!this.stream||this.hasFrame;
-    $('capture-source').textContent=this.stream?'화면 공유 중':this.hasFrame?(this.imageSource||'정지 화면'):'공유 대기';
+    $('capture-source').textContent=this.stream?t('화면 공유 중'):this.hasFrame?t(this.imageSource||'정지 화면'):t('공유 대기');
   }
   async start(){
-    if(!navigator.mediaDevices?.getDisplayMedia){this.status('화면 공유를 지원하는 Chrome 또는 Edge에서 localhost 주소로 열어 주세요.',true);return;}
+    if(!navigator.mediaDevices?.getDisplayMedia){this.status(()=>(t('화면 공유를 지원하는 Chrome 또는 Edge에서 localhost 주소로 열어 주세요.')),true);return;}
     this.stop(false);this.starting=true;this.controls();const token=++this.token;
     try{
       const stream=await navigator.mediaDevices.getDisplayMedia({video:{frameRate:{ideal:30,max:30}},audio:false});
@@ -66,15 +81,15 @@ export class ScreenCapture {
       if(token!==this.token)return;
       this.calibration=null;this.latest=null;this.hasFrame=false;this.accepted=false;this.resetPlan();this.controls();
       stream.getVideoTracks()[0].addEventListener('ended',()=>{if(this.stream===stream)this.stop();},{once:true});
-      this.status('실시간 미리보기 중입니다. 인식 버튼을 누르면 그 순간의 화면만 한 번 읽습니다.');
+      this.status(()=>(t('실시간 미리보기 중입니다. 인식 버튼을 누르면 그 순간의 화면만 한 번 읽습니다.')));
     }catch(error){
-      if(token===this.token){this.stop(false);this.status(error.name==='NotAllowedError'?'공유가 취소됐습니다. 화면 공유 시작을 눌러 다시 선택할 수 있습니다.':`화면을 공유하지 못했습니다: ${error.message}`,true);}
+      if(token===this.token){this.stop(false);this.status(()=>(error.name==='NotAllowedError'?t('공유가 취소됐습니다. 화면 공유 시작을 눌러 다시 선택할 수 있습니다.'):t`화면을 공유하지 못했습니다: ${t(error.message)}`),true);}
     }finally{this.starting=false;this.controls();}
   }
   stop(notice=true){
     ++this.token;++this.imageRequest;
     this.stream?.getTracks().forEach(t=>t.stop());this.stream=null;this.video.srcObject=null;this.starting=false;
-    this.drag=null;this.target=null;this.controls();this.draw();if(notice)this.status('화면 공유를 종료했습니다. 마지막 인식 화면은 정지 상태로 남습니다.');
+    this.drag=null;this.target=null;this.controls();this.draw();if(notice)this.status(()=>(t('화면 공유를 종료했습니다. 마지막 인식 화면은 정지 상태로 남습니다.')));
   }
   setActive(active){this.active=active;if(!active){this.stop(false);this.accepted=false;}this.draw();}
   copyFrame(source){
@@ -85,17 +100,17 @@ export class ScreenCapture {
     this.frame.getContext('2d',{willReadFrequently:true}).drawImage(source,0,0,w,h);this.hasFrame=true;this.controls();return true;
   }
   async sample(){
-    await this.loadImage('/sample-game.png',{demo:true,label:'예시 이미지',error:'예시 이미지를 열지 못했습니다.'});
+    await this.loadImage('/sample-game.png',{demo:true,label:t('예시 이미지'),error:t('예시 이미지를 열지 못했습니다.')});
   }
   async pasteImage(file){
     const url=URL.createObjectURL(file);
-    try{await this.loadImage(url,{demo:false,label:'클립보드 이미지',error:'붙여넣은 이미지를 읽지 못했습니다. 스크린샷을 다시 복사해 붙여넣어 주세요.'});}
+    try{await this.loadImage(url,{demo:false,label:t('클립보드 이미지'),error:t('붙여넣은 이미지를 읽지 못했습니다. 스크린샷을 다시 복사해 붙여넣어 주세요.')});}
     finally{URL.revokeObjectURL(url);}
   }
   async loadImage(url,{demo,label,error}){
     const request=++this.imageRequest,token=this.token,image=new Image();
     const current=()=>request===this.imageRequest&&token===this.token&&this.active;
-    this.status(`${label}를 읽는 중…`);image.src=url;
+    this.status(()=>(t`${t(label)}를 읽는 중…`));image.src=url;
     try{
       await image.decode();if(!current())return;
       const pendingReroll=!demo&&!!this.callbacks.getPlan().result?.reroll;
@@ -103,12 +118,12 @@ export class ScreenCapture {
       this.stop(false);this.demo=demo;this.imageSource=label;this.pendingReroll=pendingReroll;
       this.calibration=null;this.accepted=false;this.latest=null;
       $('capture-detection').textContent='';$('capture-board-label').hidden=true;
-      this.resetPlan();this.copyFrame(image);this.draw();this.status('이미지가 준비됐습니다. 인식 버튼을 눌러 한 번 읽으세요.');
-    }catch{if(current())this.status(error,true);}
+      this.resetPlan();this.copyFrame(image);this.draw();this.status(()=>(t('이미지가 준비됐습니다. 인식 버튼을 눌러 한 번 읽으세요.')));
+    }catch{if(current())this.status(()=>(error),true);}
   }
   locate(image){
     const state=this.callbacks.getState();this.boards=detectBoards(image,state.cols,state.rows);
-    $('capture-board-choice').replaceChildren(...this.boards.map((b,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`보드 ${i+1} · 화면 ${b.x>image.width/2?'오른쪽':'왼쪽'}`;return o;}));
+    $('capture-board-choice').replaceChildren(...this.boards.map((b,i)=>{const o=document.createElement('option');o.value=i;o.textContent=t`보드 ${i+1} · 화면 ${b.x>image.width/2?t('오른쪽'):t('왼쪽')}`;return o;}));
     $('capture-board-label').hidden=this.boards.length<2;
     if(this.boards.length)this.calibration={board:this.boards[0],slots:defaultSlots(this.boards[0],state.cols)};
     else {
@@ -119,7 +134,7 @@ export class ScreenCapture {
   selectBoard(index){
     const board=this.boards[index];if(!board)return;
     this.calibration={board,slots:defaultSlots(board,this.callbacks.getState().cols)};
-    this.latest=null;this.resetPlan();this.saveCalibration();this.draw();this.status('영역을 저장했습니다. 인식 버튼을 눌러 한 번 읽으세요.');
+    this.latest=null;this.resetPlan();this.saveCalibration();this.draw();this.status(()=>(t('영역을 저장했습니다. 인식 버튼을 눌러 한 번 읽으세요.')));
   }
   saveCalibration(){
     const {cols,rows}=this.callbacks.getState();this.geometry=`${cols},${rows}`;
@@ -136,29 +151,28 @@ export class ScreenCapture {
   }
   analyze(){
     if(!this.active||(!this.stream&&!this.hasFrame))return;
-    if(this.target||this.drag){this.status('영역 드래그를 마친 뒤 인식을 눌러 주세요.',true);return;}
+    if(this.target||this.drag){this.status(()=>(t('영역 드래그를 마친 뒤 인식을 눌러 주세요.')),true);return;}
     this.observedRerollPlan=this.callbacks.getPlan().result;this.pendingReroll=!!this.observedRerollPlan?.reroll;
     this.latest=null;this.accepted=false;this.resetPlan();$('capture-detection').textContent='';
-    if(this.stream&&!this.copyFrame(this.video)){this.status('영상이 준비될 때까지 기다린 뒤 인식을 눌러 주세요.',true);this.draw();return;}
+    if(this.stream&&!this.copyFrame(this.video)){this.status(()=>(t('영상이 준비될 때까지 기다린 뒤 인식을 눌러 주세요.')),true);this.draw();return;}
     const observation=this.readObservation();this.latest=observation;
-    if(!observation){this.status('보드를 찾지 못했습니다. 영역 조정에서 보드와 조각 3개의 영역을 지정하세요.',true);this.draw();return;}
+    if(!observation){this.status(()=>(t('보드를 찾지 못했습니다. 영역 조정에서 보드와 조각 3개의 영역을 지정하세요.')),true);this.draw();return;}
     if(observation.error||!observation.safe){
-      this.status(observation.error||`인식 확인 필요 · ${observation.uncertain||0}칸 불확실. 보드와 조각 영역을 조정하거나 아래 보드를 직접 수정하세요.`,true);this.draw();return;
+      this.status(()=>(observation.error||t`인식 확인 필요 · ${observation.uncertain||0}칸 불확실. 보드와 조각 영역을 조정하거나 아래 보드를 직접 수정하세요.`),true);this.draw();return;
     }
-    const description=observation.pieces.map((p,i)=>`${i+1}번 ${p.status==='used'?'사용 완료':`${p.cells.length}칸`}`).join(' · ');
-    $('capture-detection').textContent=`격자 점검 ${Math.round(observation.confidence*100)}/100 · ${description}`;
+    this.renderDetection();
     if(this.pendingReroll&&this.callbacks.getPlan().result?.reroll){
-      this.status('바꾸기 결과 이미지를 읽었습니다. 추천 순서의 「공유 화면의 새 조각 반영」을 눌러 실제 결과를 반영하세요.');this.draw();return;
+      this.status(()=>(t('바꾸기 결과 이미지를 읽었습니다. 추천 순서의 「공유 화면의 새 조각 반영」을 눌러 실제 결과를 반영하세요.')));this.draw();return;
     }
     this.pendingReroll=false;
-    if(!observation.pieces.some(p=>p.status==='ready')){this.status('세 조각 사용 완료 · 다음 세트가 나오면 인식 버튼을 누르세요.');this.draw();return;}
+    if(!observation.pieces.some(p=>p.status==='ready')){this.status(()=>(t('세 조각 사용 완료 · 다음 세트가 나오면 인식 버튼을 누르세요.')));this.draw();return;}
     try{
       this.callbacks.onRead(observation,{demo:!!this.demo});this.accepted=true;
-      this.status('인식 결과를 보드에 반영했습니다. 배치를 계산하고 있습니다.');
-    }catch(error){this.status(error.message,true);}
+      this.status(()=>(t('인식 결과를 보드에 반영했습니다. 배치를 계산하고 있습니다.')));
+    }catch(error){this.status(()=>(t(error.message)),true);}
     this.draw();
   }
-  resume(){this.latest=null;this.pendingReroll=false;this.accepted=false;this.status('배치를 반영했습니다. 다음 조각이 나오면 인식 버튼을 누르세요.');this.draw();}
+  resume(){this.latest=null;this.pendingReroll=false;this.accepted=false;this.status(()=>(t('배치를 반영했습니다. 다음 조각이 나오면 인식 버튼을 누르세요.')));this.draw();}
   point(event){const rect=this.canvas.getBoundingClientRect();return {x:Math.max(0,Math.min(this.canvas.width,(event.clientX-rect.left)*this.canvas.width/rect.width)),y:Math.max(0,Math.min(this.canvas.height,(event.clientY-rect.top)*this.canvas.height/rect.height))};}
   dragRect(){const {start,end}=this.drag;return {x:Math.round(Math.min(start.x,end.x)),y:Math.round(Math.min(start.y,end.y)),w:Math.round(Math.abs(end.x-start.x)),h:Math.round(Math.abs(end.y-start.y))};}
   draw(){
@@ -184,7 +198,7 @@ export class ScreenCapture {
       ctx.textAlign='left';ctx.textBaseline='bottom';ctx.font=`bold ${fontSize}px sans-serif`;
       [board,...slots].forEach((r,i)=>{
         ctx.strokeStyle=color(i?'skill':'accent');ctx.strokeRect(r.x,r.y,r.w,r.h);
-        const label=i?`조각 ${i}`:`${cols} × ${rows}`,w=ctx.measureText(label).width+8;
+        const label=i?t`조각 ${i}`:`${cols} × ${rows}`,w=ctx.measureText(label).width+8;
         ctx.fillStyle=ctx.strokeStyle;ctx.fillRect(r.x,Math.max(0,r.y-fontSize-6),w,fontSize+6);
         ctx.fillStyle=color('white');ctx.fillText(label,r.x+4,Math.max(fontSize+4,r.y-2));
       });
@@ -192,5 +206,5 @@ export class ScreenCapture {
     canvas.classList.toggle('selecting',!!this.target);
     if(this.drag){const r=this.dragRect();ctx.strokeStyle=color('selection');ctx.lineWidth=3;ctx.strokeRect(r.x,r.y,r.w,r.h);}
   }
-  planReady(){if(this.active&&this.accepted){const result=this.callbacks.getPlan().result;this.status(result?.target?.hit?`${result.target.hitStep}번까지만 놓으면 목표 ${result.target.hit.toLocaleString()}점 · 목표 점수까지 반영을 누르세요.`:result?.reroll?.reason==='capacity'?'스킬 7개 보유 중 · 먼저 다시 뽑기를 사용하고 실제 결과를 반영하세요.':isOrderIndependent(result,this.callbacks.getState().cols)?'추천을 색으로 표시했습니다. 순서 상관없이 놓고 완료를 누르세요.':'추천을 색과 번호로 표시했습니다. 순서대로 놓고 완료를 누르세요.');this.draw();}}
+  planReady(){if(this.active&&this.accepted){const result=this.callbacks.getPlan().result;this.status(()=>(result?.target?.hit?t`${result.target.hitStep}번까지만 놓으면 목표 ${result.target.hit.toLocaleString()}점 · 목표 점수까지 반영을 누르세요.`:result?.reroll?.reason==='capacity'?t('스킬 7개 보유 중 · 먼저 다시 뽑기를 사용하고 실제 결과를 반영하세요.'):isOrderIndependent(result,this.callbacks.getState().cols)?t('추천을 색으로 표시했습니다. 순서 상관없이 놓고 완료를 누르세요.'):t('추천을 색과 번호로 표시했습니다. 순서대로 놓고 완료를 누르세요.')));this.draw();}}
 }

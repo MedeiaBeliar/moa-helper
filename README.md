@@ -1,4 +1,4 @@
-# 모아모아 도우미
+# Moa Helper
 
 Moa Helper is a local puzzle assistant for MapleStory's **Hangul Moa Moa** event, running from **October 1, 2026 at 10:00 AM to October 14, 2026 at 11:59 PM (KST)**. It is an unofficial project for personal use and learning.
 
@@ -18,7 +18,9 @@ npm start
 
 Open [localhost:3210](http://localhost:3210). The application has no runtime package dependencies and requires no installation or build step. On Windows, you can also double-click `start.cmd`. Press `Ctrl+C` in the server console to stop it.
 
-The first launch has an empty block library. Choose **기본 블록 모두 추가** to load all **19 unique shapes**, or import [`examples/blocks.json`](examples/blocks.json) using **불러오기**. The in-game interface remains in Korean; project documentation is in English.
+Choose **English** in the language selector at the top of the page. The interface defaults to Korean and remembers your choice in this browser.
+
+The first launch has an empty block library. Choose **Add all default blocks** to load all **19 unique shapes**, or use **Import** to load [`examples/blocks.json`](examples/blocks.json).
 
 Desktop Chrome or Edge is recommended for screen sharing and the optional always-on-top window. The latter requires Document Picture-in-Picture support.
 
@@ -35,6 +37,7 @@ Select a move, play the sequence, or scrub through individual steps to inspect a
 
 | Area | Behavior |
 | --- | --- |
+| Language | Switches between Korean and English and remembers the choice. Saved block names remain unchanged. |
 | Placement search | Prioritizes placing all three pieces, then compares simultaneous line-clear scores and space for future pieces. |
 | Screen input | Reads a shared screen or pasted image only when recognition is requested. Video preview uses native browser playback. |
 | Skills | Places dot skills between ordinary pieces and asks for actual reroll results. A completed plan must leave fewer than seven held skills. |

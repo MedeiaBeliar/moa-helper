@@ -18,6 +18,8 @@ On Linux, use `npx playwright install --with-deps chromium` if system libraries 
 
 Browser coverage includes manual placement, Hangul input and IME composition, inline statistics, screen sharing, clipboard images, stage records, worker deadlines, exact-score targets, playback, focus mode, and layouts from 320px to desktop. Picture-in-Picture is exercised when the browser exposes that API.
 
+Localization checks cover Korean/English switching, reload and cross-tab persistence, dialog validation, keyboard commands, and English layouts. They verify that language changes preserve plans and observations and do not trigger another capture or recognition pass. Unit checks verify translated placeholders and literal player-defined names.
+
 Set `PLAYWRIGHT_MODULE_PATH` to reuse an installed Playwright module, or `BROWSER_EXECUTABLE` to use a separate Chromium executable. By default, tests use the Playwright dependency installed by `npm ci` and its browser.
 
 `npm run test:http` is a separate API test that opens an ephemeral local HTTP server. Do not run it when testing must avoid listening ports. `npm run test:parallel` uses a small temporary fixture to check pause/resume behavior; it is not a score benchmark.

@@ -45,6 +45,8 @@ Future-piece evaluation uses smoothed overall normal-draw observations. Stage-sp
 
 Layout is defined in [`index.html`](../public/index.html), [`manual.css`](../public/manual.css), and [`tokens.css`](../public/tokens.css). A local Pretendard variable font supplies the interface typography.
 
+[`i18n.js`](../public/i18n.js) selects Korean source messages or the [English catalog](../public/locales/en.js). Static labels bind once at startup; dynamic views render again when the language changes. Message templates keep block names and other values separate from translated text. The `moa-language-v1` localStorage preference applies across tabs. Changing language does not change game state, restart search, or recognize another frame.
+
 ## Persistence
 
 [`server.mjs`](../server.mjs) listens on `127.0.0.1`, port 3210 by default. GET `/api/state` reads state; PUT validates and saves it. Host and Origin checks restrict local access. Static files are resolved under `public`.
