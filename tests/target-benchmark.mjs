@@ -39,7 +39,7 @@ const base=path.join(outputDir,`targets-${runId}`),snapshotPath=`${base}-input.j
 await mkdir(outputDir,{recursive:true});
 const targets=new Set(TARGET_SCORES);
 assert.ok(targets.size>0&&[...targets].every(Number.isSafeInteger),'TARGET_SCORES must contain integer scores.');
-const algorithmFiles=['../public/solver.js','../public/fast.js','../public/search.js','../public/policy.js','../public/statistics.js','../public/targets.js','./game-model.mjs','./target-worker.mjs','./target-benchmark.mjs','./target-benchmark-support.mjs','./target-resource-budget.mjs','./atomic-json.mjs'];
+const algorithmFiles=['../public/solver.js','../public/fast.js','../public/move-order.js','../public/search.js','../public/policy.js','../public/statistics.js','../public/targets.js','./game-model.mjs','./target-worker.mjs','./target-benchmark.mjs','./target-benchmark-support.mjs','./target-resource-budget.mjs','./atomic-json.mjs'];
 const hashes={};
 for(const file of algorithmFiles)hashes[file]=createHash('sha256').update(await readFile(new URL(file,import.meta.url))).digest('hex');
 async function captureInput(){

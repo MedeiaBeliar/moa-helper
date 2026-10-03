@@ -3,6 +3,7 @@ import {searchPlacements,compilePlacements,countLegalPlacements} from './search.
 import {createEvaluator,preparePolicyCatalogue,mobilityReport,scenarioWeights,makeScenarios,expectedPlacementValue,restartAssessment,policyBoardKey} from './policy.js';
 import {activeTargets,nextTarget,targetPath,scoreMoves} from './targets.js';
 import {stageForLines} from './statistics.js';
+import {optimizeMoveOrder} from './move-order.js';
 
 // Leave time for worker startup, message delivery and painting; a host-side
 // watchdog owns the hard wall limit.
@@ -29,9 +30,17 @@ export function solveFast(input,{onProgress}={}){
     return {...result,target:{enabled:true,currentScore:input.currentScore??null,status,...path,
       hit:result.complete?path.hit:null,hitStep:result.complete?path.hitStep:null}};
   };
+  const orderCache=new WeakMap();
+  const ordered=c=>{
+    if(!orderCache.has(c)){
+      const refined=optimizeMoveOrder(input,c,{deadline:Math.min(deadline-5,performance.now()+4)});
+      orderCache.set(c,refined);orderCache.set(refined,refined);
+    }
+    return orderCache.get(c);
+  };
   const corrected=c=>{
     const replay=scoreMoves(input.currentScore,c.moves,{skillIcons:input.skillIcons,skills});
-    return {...c,moves:replay.moves,score:replay.score,acquiredCount:replay.acquiredCount,held:replay.held};
+    return ordered({...c,moves:replay.moves,score:replay.score,acquiredCount:replay.acquiredCount,held:replay.held});
   };
   let nodes=0,best=null,bestValue=-Infinity,latest=null;
   const catalogue=input.catalogue||[],distributions=new Map();
@@ -46,6 +55,7 @@ export function solveFast(input,{onProgress}={}){
   const evidence={kind:'scenarios',profile:'fast',tested:0,skipped:0,depth:1,candidates:0,
     observedSamples:currentDistribution.samples,stage:currentDistribution.stage,stageSamples:currentDistribution.stageSamples,probabilityBasis:currentDistribution.basis,failures:0,unknown:0};
   const resultOf=c=>{
+    c=ordered(c);
     const placementScore=c.moves.reduce((s,m)=>s+m.placementScore,0),lineScore=c.moves.reduce((s,m)=>s+m.lineScore,0),acquisitionScore=c.moves.reduce((s,m)=>s+(m.acquisitionScore||0),0);
     return withTarget({moves:c.moves,lines:c.lines,score:placementScore+lineScore+acquisitionScore,placementScore,lineScore,acquisitionScore,depth:c.depth,
       complete:c.depth===input.pieces.length&&skills.dot+skills.reroll-c.dots+(c.acquiredCount||0)<7,remaining:input.pieces.length-c.depth,
@@ -112,6 +122,7 @@ export function solveFast(input,{onProgress}={}){
   if(best)bestValue=utility(best);
   if(targetMode&&best)rememberTarget(best);
   const accept=c=>{
+    c=ordered(c);
     const value=utility(c),previous=best;
     if(!best||value>bestValue){best=c;bestValue=value;}
     if(targetMode){rememberTarget(c);const chosen=selectGoal(best);if(previous!==best||latest?.moves!==chosen.moves)publish(chosen);}
@@ -124,7 +135,7 @@ export function solveFast(input,{onProgress}={}){
   if(!pool.length){
     // A bounded miss is not game over. Use the remaining time for a current-batch
     // rescue and an actual reroll boundary instead of speculative future work.
-    const rescue=solveFallback({...input,options:{...options,timeLimit:Math.max(20,deadline-performance.now()-20),beamWidth:80}});
+    const rescue=ordered(solveFallback({...input,options:{...options,timeLimit:Math.max(20,deadline-performance.now()-25),beamWidth:80}}));
     nodes+=rescue.nodes;
     const partial=search.bestPartial;
     if(!rescue.complete&&!rescue.reroll&&partial.depth>rescue.depth)latest=resultOf(partial);
@@ -142,8 +153,9 @@ export function solveFast(input,{onProgress}={}){
   // Keep a complete legal witness even if the deadline expired during a GC
   // pause before the candidate ranking pass.
   if(!best){best=pool[0];publish(best);}
-  for(const c of pool){
+  for(const original of pool){
     if(performance.now()>deadline-30)break;
+    const c=ordered(original);
     const key=targetMode?`${c.board}/${c.dots}/${c.score}/${pathOf(c).hit}`:`${c.board}/${c.dots}`;if(seen.has(key))continue;seen.add(key);
     const value=utility(c);ranked.push({candidate:c,value});accept(c);
   }
