@@ -77,6 +77,19 @@ try{
   assert.equal(puts,beforePuts);assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('moa-manual-unsaved-v1')).clearedLines),101);
   await page.unroute('**/api/state');await page.reload();await saved();assert.equal((await store.read()).clearedLines,101);
   assert.equal(await page.locator('#current-stage').textContent(),'4단계');assert.equal(await page.locator('#stage-server-warning').isHidden(),true);
+  // The real worker must receive the current line count and use the latest
+  // edited stage records, including when the next candidate crosses a stage.
+  await page.locator('#tab-manual').click();await scope(5);await edit('a','normal',12);await counter(151);
+  await page.locator('#statistics-back').click();await page.locator('#search-blocks').fill('...');await page.locator('#search-blocks').press('Enter');
+  await page.evaluate(()=>{
+    const post=Worker.prototype.postMessage;
+    Worker.prototype.postMessage=function(message,...args){window.lastSolverInput=structuredClone(message.input);return post.call(this,message,...args);};
+  });
+  await page.locator('#solve').click();await page.waitForFunction(()=>!document.querySelector('#complete-plan').hidden);
+  assert.equal(await page.evaluate(()=>window.lastSolverInput.clearedLines),151);
+  assert.match(await page.locator('#search-meta').textContent(),/5단계 일반 출현 15회/);
+  await page.locator('#language').selectOption('en');assert.match(await page.locator('#search-meta').textContent(),/15 normal draws in stage 5/);
+  await page.locator('#language').selectOption('ko');
   assert.deepEqual(errors,[]);
   console.log('PASS stages: legacy unknown, all-stage totals, 30-to-31 transition, no recount, scoped probabilities/search/editing, persistence, global reset/undo, mobile layout and old-server draft recovery; no server');
 }finally{

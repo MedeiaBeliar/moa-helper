@@ -1,5 +1,5 @@
 // Optional, explicitly launched full games; this module never launches a server.
-// A score cap is a display rule, not a simulated death or a stopping condition.
+// The comparison runs to death. The explicit 500k preset stops at the cap.
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import {createHash} from 'node:crypto';
 import {cpus,totalmem,setPriority,constants} from 'node:os';
@@ -12,7 +12,7 @@ import {createGame,deal,legalMoves,isDead,playMove,rerollPiece} from './game-mod
 import {place} from '../public/solver.js';
 import {createEvaluator} from '../public/policy.js';
 import {TARGET_SCORES} from '../public/targets.js';
-import {catalogueFromState,createDrawModel,validateResume,predictionAtStep,recordTargetArrival} from './target-benchmark-support.mjs';
+import {catalogueFromState,createDrawModel,validateResume,predictionAtStep,recordTargetArrival,benchmarkPreset,benchmarkJobs,benchmarkStopStatus} from './target-benchmark-support.mjs';
 import {recommendedParallelism,createResourceBudget} from './target-resource-budget.mjs';
 import {createProgressDisplay,targetProgress} from './target-progress.mjs';
 
@@ -20,17 +20,16 @@ const root=fileURLToPath(new URL('../',import.meta.url));
 process.chdir(root);
 const args=process.argv.slice(2);
 if(args.includes('--help')){
-  console.log('node tests/target-benchmark.mjs [--seed 509] [--pairs 3] [--parallel 3] [--run RUN_ID] [--output-dir PATH] [--input SNAPSHOT]\n기본은 3개 시드의 목표 ON/OFF 총 6게임입니다. 병렬 계산은 사양에 맞춰 1~4개, 저우선순위/휴식/부하 감속을 적용합니다.\n현재 점수, 다음 목표까지 남은 점수, 정확한 도달 이력을 진행 막대로 표시합니다. 목표와 50만점에 도달해도 실제 사망까지 계속합니다.\n--run은 같은 코드와 입력을 재개합니다. Ctrl+C는 사망으로 처리하지 않고 저장 후 중지합니다.');
+  console.log('node tests/target-benchmark.mjs [--preset 500k] [--seed 509] [--pairs 3] [--parallel 3] [--run RUN_ID] [--output-dir PATH] [--input SNAPSHOT]\n기본은 3개 시드의 목표 ON/OFF 총 6게임입니다. 병렬 계산은 사양에 맞춰 1~4개, 저우선순위/휴식/부하 감속을 적용합니다.\n--preset 500k: 설정 없이 목표 ON 2게임, 동시 계산 2개, 휴식·부하 감속 없이 최고속도로 50만점 또는 사망까지 진행합니다.\n현재 점수, 다음 목표까지 남은 점수, 정확한 도달 이력을 진행 막대로 표시합니다. 기본 비교는 목표와 50만점에 도달해도 실제 사망까지 계속합니다.\n--run은 같은 코드와 입력을 재개합니다. Ctrl+C는 사망으로 처리하지 않고 저장 후 중지합니다.');
   process.exit(0);
 }
 function argument(name,fallback){const index=args.indexOf(name);return index<0?fallback:args[index+1];}
-for(let i=0;i<args.length;i+=2)assert.ok(['--seed','--run','--pairs','--parallel','--output-dir','--input'].includes(args[i])&&args[i+1],`알 수 없거나 값이 없는 인수: ${args[i]}`);
-const resume=argument('--run',null),requestedSeed=Number(argument('--seed','509')),requestedPairs=Number(argument('--pairs','3'));
+for(let i=0;i<args.length;i+=2)assert.ok(['--preset','--seed','--run','--pairs','--parallel','--output-dir','--input'].includes(args[i])&&args[i+1],`알 수 없거나 값이 없는 인수: ${args[i]}`);
+const requestedPreset=benchmarkPreset(argument('--preset','comparison'));
+const resume=argument('--run',null),requestedSeed=Number(argument('--seed','509')),requestedPairs=Number(argument('--pairs',String(requestedPreset.pairs)));
 const requestedParallel=Number(argument('--parallel',String(recommendedParallelism())));
 assert.ok(Number.isInteger(requestedParallel)&&requestedParallel>=1&&requestedParallel<=4,'병렬 계산은 1~4개 사이입니다.');
-const maxParallel=Math.min(recommendedParallelism(),requestedParallel);
 assert.ok(Number.isInteger(requestedPairs)&&requestedPairs>=1&&requestedPairs<=4,'시드 쌍은 1~4개(총 2~8게임)입니다.');
-assert.ok(Number.isInteger(maxParallel)&&maxParallel>=1&&maxParallel<=4,'병렬 계산은 1~4개 사이입니다.');
 assert.ok(!(resume&&args.includes('--input')),'재개는 최초 입력 스냅샷을 사용합니다.');
 assert.ok(Number.isInteger(requestedSeed)&&requestedSeed>=0&&requestedSeed<2**32,'시드는 0~4294967295 정수입니다.');
 const runId=resume||`${new Date().toISOString().replace(/[:.]/g,'-')}-${process.pid}`;
@@ -40,7 +39,7 @@ const base=path.join(outputDir,`targets-${runId}`),snapshotPath=`${base}-input.j
 await mkdir(outputDir,{recursive:true});
 const targets=new Set(TARGET_SCORES);
 assert.ok(targets.size>0&&[...targets].every(Number.isSafeInteger),'TARGET_SCORES must contain integer scores.');
-const algorithmFiles=['../public/solver.js','../public/fast.js','../public/search.js','../public/policy.js','../public/targets.js','./game-model.mjs','./target-worker.mjs','./target-benchmark.mjs','./target-benchmark-support.mjs','./target-resource-budget.mjs','./atomic-json.mjs'];
+const algorithmFiles=['../public/solver.js','../public/fast.js','../public/search.js','../public/policy.js','../public/statistics.js','../public/targets.js','./game-model.mjs','./target-worker.mjs','./target-benchmark.mjs','./target-benchmark-support.mjs','./target-resource-budget.mjs','./atomic-json.mjs'];
 const hashes={};
 for(const file of algorithmFiles)hashes[file]=createHash('sha256').update(await readFile(new URL(file,import.meta.url))).digest('hex');
 async function captureInput(){
@@ -57,16 +56,19 @@ async function captureInput(){
     catalogue=fixture.catalogue;source='tests/fixtures/observed-speed-comparison.json 예비 자료';
     console.warn(`현재 통계를 읽을 수 없어 예비 자료를 사용합니다: ${error.message}`);
   }
-  return {version:2,createdAt:new Date().toISOString(),seed:requestedSeed,pairs:requestedPairs,source,catalogue};
+  return {version:2,createdAt:new Date().toISOString(),seed:requestedSeed,pairs:requestedPreset.targetOnly?requestedPreset.pairs:requestedPairs,preset:requestedPreset.name,source,catalogue};
 }
 const snapshot=resume?JSON.parse(await readFile(snapshotPath,'utf8')):await captureInput();
+const preset=benchmarkPreset(snapshot.preset??'comparison');
+if(resume&&args.includes('--preset'))assert.equal(preset.name,requestedPreset.name,'재개 설정은 최초 실행과 같아야 합니다.');
+const maxParallel=preset.maxSpeed?preset.parallel:Math.min(recommendedParallelism(),requestedParallel);
 assert.ok(Array.isArray(snapshot.catalogue)&&snapshot.catalogue.length>0&&snapshot.catalogue.length<=500,'조각 목록은 1~500개여야 합니다.');
 if(resume&&args.includes('--seed'))assert.equal(snapshot.seed,requestedSeed,'재개 시드는 최초 실행 시드와 같아야 합니다.');
 assert.equal(snapshot.version,2,'이전 실행 형식입니다. 새 병렬 비교를 시작하세요.');
 if(resume&&args.includes('--pairs'))assert.equal(snapshot.pairs,requestedPairs,'재개 시 게임 수는 최초 실행과 같아야 합니다.');
 const seed=snapshot.seed,catalogue=snapshot.catalogue,pairs=snapshot.pairs;
 assert.ok(Number.isInteger(pairs)&&pairs>=1&&pairs<=4,'저장된 게임 수를 확인하세요.');
-const jobs=Array.from({length:pairs},(_,i)=>['normal','target'].map(mode=>({gameId:`${i+1}-${mode}`,mode,seed:(seed+i)>>>0}))).flat();
+const jobs=benchmarkJobs({seed,pairs,preset:preset.name});
 assert.ok(Number.isInteger(seed)&&seed>=0&&seed<2**32,'저장된 입력의 시드가 올바르지 않습니다.');
 hashes.input=createHash('sha256').update(JSON.stringify(snapshot)).digest('hex');
 if(!resume)await atomicJson(snapshotPath,snapshot);
@@ -74,29 +76,29 @@ const drawModel=createDrawModel(catalogue),weights=drawModel.weights;
 const statistics={entries:catalogue.map(b=>({blockId:b.id,name:b.name,normal:b.normal,reroll:b.reroll,stages:b.stages||{}}))};
 const hardware={cpu:cpus()[0]?.model,threads:cpus().length,memoryGiB:Math.round(totalmem()/2**30)};
 const conditions=[
-  '배치 점수는 조각 칸 수, 점 찍기는 1점. 한 행동에서 동시에 제거한 가로줄 n개는 300 × n²점이며 실제 능력 획득은 개당 50점을 추가함.',
-  '일반 조각 7회 배치마다 능력 아이콘 생성. 보드에 3개를 초과하면 가장 오래된 아이콘부터 사라지며 소멸에는 점수·스킬 획득이 없음.',
-  '동일 시드의 일반 추첨/바꾸기/아이콘 위치/아이콘 종류 독립 난수열. 두 모드는 게임 진행에 따라 다른 횟수로 소비할 수 있음.',
-  '단계별 표본이 있으면 전체 통계 30회분으로 보정. 단계 표본이 없으면 전체 통계 사용. 일반 전체 통계는 조각별 +1, 바꾸기는 일반 비율 30회분 보정.',
-  '추첨에는 위 단계별 모형을 적용하지만 추천 알고리즘의 미래 시나리오 평가에는 현재 구현대로 전체 통계를 전달함. 두 모드는 동일한 조건.',
-  '실게임의 단계별 정확한 확률은 알려지지 않으므로 실제 점수를 보장하지 않음.',
-  '아이콘 생성 위치는 빈칸 균등 모형, 점 40%/바꾸기 60%, 획득 +50. 현재 보이는 아이콘 위치/종류만 두 모드에 똑같이 전달하며 미래 생성 위치/종류는 전달하지 않음.',
-  '목표 도달은 개별 행동 후 실제 시뮬레이터 점수로만 집계. 도달해도 나머지 계획을 수행하고 사망까지 계속함.',
-  '50만점은 표시 상한이며 종료 조건이 아님. 사용자 중지, 오류, 시간 초과를 사망으로 분류하지 않음.',
-  '계산 시간은 준비된 Worker와의 왕복. 대기/휴식 시간은 별도이며 각 시드마다 목표 ON/OFF를 비교. 병렬 실행 속도는 단독 실행과 다를 수 있음.',
-  '낮은 프로세스 우선순위, 계산 후 동일 길이 이상 휴식. 전체 CPU 60% 이상이면 1개로 감속, 85% 이상 또는 메모리 부족이면 새 계산 대기. 기존 계산은 완료 후 감속.',
+  'Piece placement earns its cell count; a dot earns 1 point. Simultaneous horizontal clears earn 300 × n² points, and each acquired ability earns 50 points.',
+  'An ability spawns every seven ordinary placements. If more than three icons remain, the oldest disappears without a reward.',
+  'Normal draws, rerolls, icon positions and icon types use independent seeded random streams. Different policies may consume different numbers of draws.',
+  'Stage observations use a 30-observation overall prior; missing stages use overall counts. Normal overall counts add one per identity; rerolls use a 30-observation normal-distribution prior.',
+  'The draw model and recommendation evaluator share the stage probability model. Each candidate uses the stage reached after its clears.',
+  'The exact game probabilities are unpublished. Observed distributions do not guarantee real-game scores.',
+  'Icons spawn uniformly over empty cells, with 40% dots and 60% rerolls. Only visible icons are supplied to the solver; future spawns are hidden.',
+  preset.stopAtCap?'Automatic targets are enabled in both games. Exact arrivals are recorded after each action; play ends at 500,000 points or verified death.':'Exact target arrivals are recorded after each action. Games continue through targets and the displayed score cap until verified death.',
+  preset.stopAtCap?'Cap completion is recorded as cap-reached, separately from death. Stops, errors and timeouts are not deaths.':'500,000 points is a display cap, not a stopping condition. Stops, errors and timeouts are not deaths.',
+  'Calculation time is a round trip to a ready worker and excludes queueing or rest. Parallel timing can differ from isolated timing.',
+  preset.maxSpeed?'Two simultaneous calculations, normal process priority, no artificial rest or load throttling. Each recommendation retains the one-second limit.':'Below-normal priority with rest after each calculation. CPU load above 60% reduces concurrency to one; load above 85% or insufficient memory suspends new calculations.',
 ];
 let stopped=false,stopReason=null;
 const requestStop=()=>{stopped=true;stopReason='stopped-by-user';};
 process.on('SIGINT',requestStop);process.on('SIGTERM',requestStop);
 // Also permits a local parent process to request the same graceful stop.
 process.on('message',message=>{if(message?.type==='stop')requestStop();});
-let priority='낮음';try{setPriority(0,constants.priority.PRIORITY_BELOW_NORMAL);}catch{priority='기본 (낮춤 실패, 휴식 제한 적용)';}
-const budget=createResourceBudget({maxParallel,shouldStop:()=>stopped}),display=createProgressDisplay();
+let priority=preset.maxSpeed?'기본':'낮음';if(!preset.maxSpeed)try{setPriority(0,constants.priority.PRIORITY_BELOW_NORMAL);}catch{priority='기본 (낮춤 실패, 휴식 제한 적용)';}
+const budget=createResourceBudget({maxParallel,shouldStop:()=>stopped,...(preset.maxSpeed?{cooldownRatio:0,minRestMs:0,throttle:false,pollMs:5}:{})}),display=createProgressDisplay();
 const latestReports=new Map();
 const liveReports=new Map(jobs.map(job=>[job.gameId,{...job,status:'queued',score:0,hits:[],completedBatches:0}]));
-function progressSnapshot(){const games=[...liveReports.values()];return {runId,jobs:jobs.length,...budget.snapshot(),priority,
-  status:stopped?stopReason:games.every(game=>game.status==='dead')?'completed':'running',games};}
+function progressSnapshot(){const games=[...liveReports.values()];return {runId,jobs:jobs.length,...budget.snapshot(),priority,stopAtCap:preset.stopAtCap,maxSpeed:preset.maxSpeed,
+  status:stopped?stopReason:games.every(game=>['dead','cap-reached'].includes(game.status))?'completed':'running',games};}
 function updateProgress(){display.update(progressSnapshot());}
 // Validate every checkpoint before any game mutates a file or starts a worker.
 // A missing game can restart from its input snapshot without changing others.
@@ -108,7 +110,7 @@ if(resume)for(const job of jobs){
   catch(error){if(error.code!=='ENOENT')throw error;console.warn(`[${gameId}] 체크포인트가 없어 동일한 입력/시드로 처음부터 시작합니다.`);continue;}
   validateResume(saved,{mode,seed:jobSeed,hashes});assert.equal(saved.gameId,gameId);savedGames.set(gameId,saved);
 }
-console.log(`실행 ID: ${runId}\n입력: ${snapshot.source}\n${pairs}개 시드 / ${jobs.length}게임 / 최대 ${maxParallel}개 저부하 병렬 계산\nCtrl+C: 체크포인트 저장 후 중지\n결과: ${base}-comparison.md\n`);
+console.log(`실행 ID: ${runId}\n입력: ${snapshot.source}\n${pairs}개 시드 / ${jobs.length}게임 / 최대 ${maxParallel}개 ${preset.maxSpeed?'최고속도':'저부하'} 병렬 계산\nCtrl+C: 체크포인트 저장 후 중지\n결과: ${base}-comparison.md\n`);
 updateProgress();const progressTimer=setInterval(updateProgress,1000);progressTimer.unref();
 
 async function runGame({mode,seed,gameId}){
@@ -123,7 +125,7 @@ async function runGame({mode,seed,gameId}){
   let worker=null,nextId=0,currentStatus='running',failure=null;
   const sessionStart=performance.now(),cpuStart=process.cpuUsage();
   function summary(status){return {
-    version:1,gameId,mode,targetEnabled:mode==='target',seed,runId,status,deathVerified:status==='dead',score:game.score,scoreCap:500000,rawScoreDiagnosticOnly:game.rawScore,
+    version:1,gameId,mode,targetEnabled:mode==='target',seed,runId,preset:preset.name,status,deathVerified:status==='dead',score:game.score,scoreCap:500000,rawScoreDiagnosticOnly:game.rawScore,
     completedBatches:game.batches-Number(game.pieces.some(p=>!p.used)),placements:game.placements,lines:game.lines,skills:{...game.skills},
     dotsUsed:game.dotsUsed,rerollsUsed:game.rerollsUsed,skillsAcquired:game.skillsAcquired,remaining:game.pieces.filter(p=>!p.used),board:game.board,
     hits:ledger.hits,exactTargetCount:ledger.hits.length,predictions:ledger.predictions,predictionMisses:ledger.predictionMisses,predictionHits:ledger.predictionHits,
@@ -134,7 +136,7 @@ async function runGame({mode,seed,gameId}){
     activeMs:Math.round(ledger.activeMs+performance.now()-sessionStart),processCpuMicros:ledger.cpuMicros+Object.values(process.cpuUsage(cpuStart)).reduce((a,b)=>a+b,0),
     cpuNote:'프로세스 전체의 CPU 시간이며 병행하는 모든 게임의 부하가 함께 포함됨',updatedAt:new Date().toISOString(),startedAt,
     normalSamples:catalogue.reduce((s,b)=>s+b.normal,0),rerollSamples:catalogue.reduce((s,b)=>s+b.reroll,0),stageProbabilityModel:drawModel.description,conditions,hardware,hashes,error:failure,
-    targetProgress:targetProgress(game.score,ledger.hits),resources:{maxParallel,priority},
+    targetProgress:targetProgress(game.score,ledger.hits),resources:{maxParallel,priority,maxSpeed:preset.maxSpeed},
   };}
   async function save(status){
     const report=summary(status);
@@ -185,6 +187,7 @@ async function runGame({mode,seed,gameId}){
     assert.ok(game.skills.dot>=0&&game.skills.reroll>=0&&game.skills.dot+game.skills.reroll<=7,'실제 보유 한도');
     assert.equal(game.score,Math.min(500000,game.rawScore),'표시 점수 상한');
   }
+  const terminalStatus=()=>benchmarkStopStatus(game.score,isDead(game),preset.stopAtCap);
   function fallback(){
     ledger.fallbacks++;const legal=legalMoves(game);
     const atCapacity=game.skills.dot+game.skills.reroll===7;
@@ -216,8 +219,8 @@ async function runGame({mode,seed,gameId}){
   }
   try{
     if(!game.pieces.length)deal(game,catalogue,weights(game.stage,'normal'),draws);
-    await save(isDead(game)?'dead':'running');
-    while(!isDead(game)&&!stopped){
+    await save(terminalStatus()||'running');
+    while(!terminalStatus()&&!stopped){
       if(game.pieces.every(p=>p.used)){
         ledger.maxBatchMs=Math.max(ledger.maxBatchMs,ledger.currentBatchMs);ledger.currentBatchMs=0;
         deal(game,catalogue,weights(game.stage,'normal'),draws);await save('running');continue;
@@ -226,29 +229,30 @@ async function runGame({mode,seed,gameId}){
       const decision=await budget.run(async()=>{
         liveReports.set(gameId,{...summary('running')});updateProgress();
         return recommend({board:game.board.slice(),cols:10,pieces:game.pieces.filter(p=>!p.used).map(p=>({...p})),catalogue,statistics,
-          currentScore:game.score,targetEnabled:mode==='target',skills:{...game.skills},skillIcons:game.icons.map(icon=>({...icon})),options:{rotate:true,reflect:true,gravity:false,timeLimit:850}});
+          currentScore:game.score,clearedLines:game.lines,targetEnabled:mode==='target',skills:{...game.skills},skillIcons:game.icons.map(icon=>({...icon})),options:{rotate:true,reflect:true,gravity:false,timeLimit:850}});
       });
       ledger.calls++;ledger.totalMs+=decision.elapsed;ledger.maxMs=Math.max(ledger.maxMs,decision.elapsed);ledger.over1000+=Number(decision.elapsed>1000);ledger.watchdogs+=Number(decision.expired);
       const result=decision.result;let actions=0;
-      // Execute every legal action, even when an earlier prefix hits a target.
-      // Only compare a solver-declared hit at its declared step. New icons may
-      // spawn during the plan and produce an unpredicted acquisition bonus.
+      // Intermediate targets do not stop playback; only the explicit 500k
+      // preset may stop mid-plan. New icons can add an unpredicted bonus.
       for(const [index,move] of (result?.moves||[]).entries()){
         assert.deepEqual(move.boardBefore,game.board,'추천 시작 보드 불일치');
         playMove(game,move,icons,types);
         const expected=predictionAtStep(result,index);
         recordAction(move.kind||'piece',expected);actions++;
+        if(preset.stopAtCap&&game.score>=500000)break;
       }
-      if(result?.reroll){rerollPiece(game,result.reroll.pieceId,catalogue,weights(game.stage,'reroll'),replacements);recordAction('reroll');actions++;}
-      if(result?.complete&&game.skills.dot+game.skills.reroll>=7)ledger.completedPlansAtCapacity++;
+      const appliedCompletePlan=!!result?.complete&&actions===result.moves.length;
+      if(result?.reroll&&!(preset.stopAtCap&&game.score>=500000)){rerollPiece(game,result.reroll.pieceId,catalogue,weights(game.stage,'reroll'),replacements);recordAction('reroll');actions++;}
+      if(appliedCompletePlan&&game.skills.dot+game.skills.reroll>=7)ledger.completedPlansAtCapacity++;
       if(result&&!result.complete&&result.moves?.length)ledger.partialPlans++;
       if(!actions&&!isDead(game))fallback();audit();
       ledger.currentBatchMs+=decision.elapsed;
-      ledger.trace.push({call:ledger.calls,batch:game.batches,score:game.score,elapsedMs:Math.round(decision.elapsed),complete:!!result?.complete,watchdog:decision.expired,targetCount:ledger.hits.length});
+      ledger.trace.push({call:ledger.calls,batch:game.batches,score:game.score,elapsedMs:Math.round(decision.elapsed),complete:appliedCompletePlan,watchdog:decision.expired,targetCount:ledger.hits.length});
       if(ledger.trace.length>1000)ledger.trace.splice(0,ledger.trace.length-1000);
-      await save(isDead(game)?'dead':'running');
+      await save(terminalStatus()||'running');
     }
-    currentStatus=isDead(game)?'dead':stopReason||'stopped-after-peer-error';
+    currentStatus=terminalStatus()||stopReason||'stopped-after-peer-error';
   }catch(error){if(error.code==='BENCHMARK_STOPPED')currentStatus=stopReason||'stopped-by-user';else{currentStatus='error';failure=error.stack||String(error);stopped=true;stopReason??='stopped-after-peer-error';}}
   finally{
     await worker?.terminate();await save(currentStatus);
@@ -263,15 +267,16 @@ for(const [index,outcome] of outcomes.entries())if(outcome.status==='rejected'){
 }
 const reports=[...latestReports.values()].sort((a,b)=>a.gameId.localeCompare(b.gameId));
 const allDead=reports.length===jobs.length&&reports.every(report=>report.deathVerified);
-const lines=['# 목표 점수 병렬 테스트','',`실행 ID: ${runId} · 시드 ${seed}부터 ${pairs}쌍 · ${jobs.length}게임 · 최대 ${maxParallel}개 동시 계산`,'',
-  allDead?'모든 게임의 실제 사망을 확인했습니다.':'중간 종료 또는 오류를 포함합니다. 사망이 확인된 행만 최종 게임 점수입니다.','',
-  '| 게임 | 시드 | 상태 | 점수 | 다음 목표 / 남은 점수 | 실제 목표 도달 | 평균 / 최대 추천 시간 |',
+const allFinished=reports.length===jobs.length&&reports.every(report=>['dead','cap-reached'].includes(report.status));
+const lines=['# Target benchmark','',`Run: ${runId} · preset: ${preset.name} · ${pairs} seeds starting at ${seed} · ${jobs.length} games · concurrency ${maxParallel}`,'',
+  allDead?'All games ended in verified death.':allFinished?'All games ended at 500,000 points or in verified death. Cap completion is not a death score.':'Includes interrupted runs or errors. Only rows marked dead are final death scores.','',
+  '| Game | Seed | Status | Score | Next target / remaining | Exact targets reached | Mean / max calculation |',
   '|---|---:|---|---:|---|---:|---:|'];
-for(const report of reports){const next=targetProgress(report.score,report.hits);lines.push(`| ${report.gameId} | ${report.seed} | ${report.status} | ${report.score.toLocaleString()} | ${next.nextTarget?.toLocaleString()??'목록 종료'} / ${next.nextTarget?next.remaining.toLocaleString():'—'} | ${report.exactTargetCount} | ${report.timing.averageMs} / ${report.timing.maxMs} ms |`);}
-for(const report of reports)lines.push('',`${report.gameId} (${report.mode==='target'?'목표 ON':'목표 OFF'}) 실제 도달 점수: ${report.hits.map(hit=>hit.score.toLocaleString()).join(', ')||'없음'}`,
-  `스킬 7개 미만으로 정지할 수 있었던 목표: ${report.hits.filter(hit=>hit.canStopBelowSkillCap).map(hit=>hit.score.toLocaleString()).join(', ')||'없음'}. 예상 목표 불일치 ${report.predictionMisses}/${report.predictions}회, 보완 정책 ${report.fallbacks}회.`,
-  ...(report.error?[`오류: ${report.error}`]:[]));
-lines.push('','목표는 100,000점 이상 16개입니다. 정확히 같은 점수를 기록했을 때만 도달 이력에 남습니다. 점수를 건너뛰어 넘어간 것은 도달로 집계하지 않습니다. 도달 이력은 이후 점수가 높아져도 유지하며 게임은 사망까지 계속합니다. 도달 횟수는 서로 다른 정확한 점수의 개수이며 실게임 성공률을 뜻하지 않습니다.','',...conditions.map(condition=>`- ${condition}`),'',`재개: node tests/target-benchmark.mjs --run ${runId} --output-dir "${outputDir}"`,'');
+for(const report of reports){const next=targetProgress(report.score,report.hits);lines.push(`| ${report.gameId} | ${report.seed} | ${report.status} | ${report.score.toLocaleString()} | ${next.nextTarget?.toLocaleString()??'None'} / ${next.nextTarget?next.remaining.toLocaleString():'—'} | ${report.exactTargetCount} | ${report.timing.averageMs} / ${report.timing.maxMs} ms |`);}
+for(const report of reports)lines.push('',`${report.gameId} (targets ${report.mode==='target'?'ON':'OFF'}) exact arrivals: ${report.hits.map(hit=>hit.score.toLocaleString()).join(', ')||'None'}`,
+  `Targets allowing a stop below seven held skills: ${report.hits.filter(hit=>hit.canStopBelowSkillCap).map(hit=>hit.score.toLocaleString()).join(', ')||'None'}. Prediction misses: ${report.predictionMisses}/${report.predictions}. Fallback actions: ${report.fallbacks}.`,
+  ...(report.error?[`Error: ${report.error}`]:[]));
+lines.push('','There are 16 automatic targets from 100,000 upward. Only exact action scores count as arrivals; passing a target does not. Arrival records persist as play continues. These counts are not real-game success rates.','',...conditions.map(condition=>`- ${condition}`),'',`Resume: node tests/target-benchmark.mjs --run ${runId} --output-dir "${outputDir}"`,'');
 await writeFile(`${base}-comparison.md`,lines.join('\n'));
 console.log(`\n비교 보고서: ${base}-comparison.md`);
 if(reports.some(report=>report.status==='error'))process.exitCode=1;

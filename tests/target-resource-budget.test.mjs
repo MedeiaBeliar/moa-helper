@@ -34,3 +34,11 @@ test('moderate load reduces the limit and low memory suspends new calculations',
   assert.equal(budget.snapshot().limit,1);values={cpuPercent:2,memoryFreeGiB:.25};assert.equal(budget.snapshot().limit,0);
   values={cpuPercent:2,memoryFreeGiB:8};assert.equal(budget.snapshot().limit,3);budget.close();
 });
+
+test('explicit maximum-speed mode keeps two slots without CPU throttling or cooldown',async()=>{
+  const budget=createResourceBudget({maxParallel:2,throttle:false,cooldownRatio:0,minRestMs:0,pollMs:1,sample:()=>({cpuPercent:95,memoryFreeGiB:8})});
+  assert.equal(budget.snapshot().limit,2);assert.equal(budget.snapshot().throttled,false);
+  let active=0,peak=0;
+  await Promise.all([1,2].map(()=>budget.run(async()=>{active++;peak=Math.max(peak,active);await pause(5);active--;})));
+  assert.equal(peak,2);assert.equal(budget.snapshot().active,0);budget.close();
+});

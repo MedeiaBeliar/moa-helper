@@ -1,7 +1,22 @@
 import assert from 'node:assert/strict';
 import {TARGET_SCORES} from '../public/targets.js';
+import {scenarioWeights} from '../public/policy.js';
 
 const validCount=n=>Number.isSafeInteger(n)&&n>=0?n:0;
+
+export function benchmarkPreset(name='comparison'){
+  assert.ok(['comparison','500k'].includes(name),'Unknown benchmark preset');
+  return name==='500k'?{name,pairs:2,parallel:2,targetOnly:true,maxSpeed:true,stopAtCap:true}:
+    {name,pairs:3,targetOnly:false,maxSpeed:false,stopAtCap:false};
+}
+export function benchmarkJobs({seed,pairs,preset='comparison'}){
+  const config=benchmarkPreset(preset);
+  return Array.from({length:config.targetOnly?config.pairs:pairs},(_,i)=>(config.targetOnly?['target']:['normal','target'])
+    .map(mode=>({gameId:`${i+1}-${mode}`,mode,seed:(seed+i)>>>0}))).flat();
+}
+export function benchmarkStopStatus(score,dead,stopAtCap=false){
+  return stopAtCap&&score>=500000?'cap-reached':dead?'dead':null;
+}
 
 // This intentionally reads only long-standing library/statistics fields. A
 // saved game from before target mode does not need a migration for a benchmark.
@@ -18,16 +33,15 @@ export function catalogueFromState(state){
 }
 
 export function createDrawModel(catalogue){
-  const normal=catalogue.map(block=>validCount(block.normal)+1),normalSum=normal.reduce((sum,n)=>sum+n,0);
-  const reroll=catalogue.map((block,index)=>validCount(block.reroll)+30*normal[index]/normalSum);
+  const blocks=catalogue.map((block,index)=>({...block,id:`draw-${index}`}));
+  const statistics={entries:blocks.map(block=>({...block,blockId:block.id}))};
   const table={},description={};
   for(const stage of [1,2,3,4,5]){
     table[stage]={};description[stage]={};
     for(const source of ['normal','reroll']){
-      const counts=catalogue.map(block=>validCount(block.stages?.[stage]?.[source])),samples=counts.reduce((sum,n)=>sum+n,0);
-      const aggregate=source==='normal'?normal:reroll,sum=aggregate.reduce((total,n)=>total+n,0);
-      table[stage][source]=samples?counts.map((n,index)=>n+30*aggregate[index]/sum):aggregate;
-      description[stage][source]={source:samples?'stage-with-overall-prior':'overall',stageSamples:samples};
+      const distribution=scenarioWeights(blocks,statistics,{stage,source});
+      table[stage][source]=distribution.weights;
+      description[stage][source]={source:distribution.stageSamples?'stage-with-overall-prior':'overall',stageSamples:distribution.stageSamples};
     }
   }
   return {description,weights(stage,source){assert.ok(table[stage]?.[source],'잘못된 단계 또는 추첨 종류');return table[stage][source];}};

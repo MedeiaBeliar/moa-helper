@@ -43,10 +43,11 @@ export function preparePolicyCatalogue(catalogue,cols,rows,options={}) {
 
 // Count real legal placements of every saved shape, not just connected free
 // area. No probability claim is made by this geometric bottleneck measure.
-export function mobilityReport(board,cols,prepared){
+export function mobilityReport(board,cols,prepared,weights=prepared.map(()=>1)){
   const counts=[],full=2**cols-1;
-  let weighted=0,weight=0,bestCombo=0,deadTypes=0;
-  for(const block of prepared){
+  const total=weights.reduce((sum,n)=>sum+n,0)||1;
+  let weighted=0,bestCombo=0,deadTypes=0,blockedMass=0,scarcity=0,expectedCombo=0;
+  for(const [index,block] of prepared.entries()){
     let count=0,combo=0;
     for(const p of block.placements){
       let fits=true,lines=0;
@@ -56,21 +57,34 @@ export function mobilityReport(board,cols,prepared){
       }
       if(fits){count++;combo=Math.max(combo,lines);}
     }
-    counts.push(count);if(!count)deadTypes++;
-    const importance=Math.sqrt(block.area);weighted+=importance*Math.log1p(count);weight+=importance;
+    const probability=weights[index]/total;
+    counts.push(count);if(!count){deadTypes++;blockedMass+=probability;}
+    weighted+=probability*Math.log1p(count);scarcity+=probability/(1+count);
+    expectedCombo+=probability*300*combo*combo;
     bestCombo=Math.max(bestCombo,300*combo*combo);
   }
-  const minFits=counts.length?Math.min(...counts):0,meanLog=weight?weighted/weight:0;
-  return {counts,deadTypes,minFits,meanLog,bestCombo,
-    value:180*meanLog+140*Math.log1p(minFits)-1200*deadTypes+bestCombo*.12};
+  const minFits=counts.length?Math.min(...counts):0,meanLog=weighted;
+  // This is the mass of a hand containing a currently blocked shape, not a
+  // death probability: another piece or a skill can clear room first.
+  const blockedHandMass=1-(1-Math.min(1,blockedMass))**3;
+  return {counts,deadTypes,minFits,meanLog,bestCombo,blockedMass,blockedHandMass,scarcity,expectedCombo,
+    value:180*meanLog+140*Math.log1p(minFits)-400*deadTypes-6000*blockedHandMass-600*scarcity+expectedCombo*.12};
 }
 
 // Regularize actual normal-draw counts; unknown/deleted identities are excluded.
 // The flat prior is a search scenario fallback, never a claim about game odds.
-export function scenarioWeights(catalogue,statistics){
-  const entries=statistics?.entries||[],counts=catalogue.map(b=>entries.find(e=>e.blockId===b.id)?.normal||0);
-  const samples=counts.reduce((s,n)=>s+n,0),prior=30/Math.max(1,catalogue.length);
-  return {samples,weights:counts.map(n=>n+prior)};
+export function scenarioWeights(catalogue,statistics,{stage=null,source='normal'}={}){
+  const valid=n=>Number.isSafeInteger(n)&&n>=0?n:0;
+  const byId=new Map((statistics?.entries||[]).filter(e=>e.blockId!=null).map(e=>[e.blockId,e]));
+  const entries=catalogue.map(b=>byId.get(b.id)),normal=entries.map(e=>valid(e?.normal)+1),normalTotal=normal.reduce((s,n)=>s+n,0)||1;
+  const counts=entries.map(e=>valid(e?.[source])),samples=counts.reduce((s,n)=>s+n,0);
+  const overall=source==='reroll'?counts.map((n,i)=>n+30*normal[i]/normalTotal):normal;
+  const overallTotal=overall.reduce((s,n)=>s+n,0)||1;
+  const currentStage=Number.isInteger(stage)&&stage>=1&&stage<=5?stage:null;
+  const stageCounts=entries.map(e=>valid(e?.stages?.[currentStage]?.[source])),stageSamples=stageCounts.reduce((s,n)=>s+n,0);
+  const weights=stageSamples?stageCounts.map((n,i)=>n+30*overall[i]/overallTotal):overall;
+  const total=weights.reduce((s,n)=>s+n,0)||1;
+  return {samples,stage:currentStage,stageSamples,source,weights,probabilities:weights.map(n=>n/total),basis:stageSamples?'stage-with-overall-prior':samples?'overall':'prior'};
 }
 
 export function makeScenarios(catalogue,weights,count=12,depth=2,seed=1){

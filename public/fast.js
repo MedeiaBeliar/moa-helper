@@ -2,6 +2,7 @@ import {findSurvival,solveFallback,skillCounts,place,actionScore} from './solver
 import {searchPlacements,compilePlacements,countLegalPlacements} from './search.js';
 import {createEvaluator,preparePolicyCatalogue,mobilityReport,scenarioWeights,makeScenarios} from './policy.js';
 import {activeTargets,nextTarget,targetPath,scoreMoves} from './targets.js';
+import {stageForLines} from './statistics.js';
 
 // Leave time for worker startup, message delivery and painting; a host-side
 // watchdog owns the hard wall limit.
@@ -31,7 +32,16 @@ export function solveFast(input,{onProgress}={}){
     return {...c,moves:replay.moves,score:replay.score,acquiredCount:replay.acquiredCount,held:replay.held};
   };
   let nodes=0,best=null,bestValue=-Infinity,latest=null;
-  const evidence={kind:'scenarios',profile:'fast',tested:0,skipped:0,depth:1,candidates:0,observedSamples:0,failures:0,unknown:0};
+  const catalogue=input.catalogue||[],distributions=new Map();
+  const stageAfter=lines=>stageForLines(Number.isSafeInteger(input.clearedLines)?input.clearedLines+lines:null);
+  const distributionFor=lines=>{
+    const stage=stageAfter(lines);
+    if(!distributions.has(stage))distributions.set(stage,scenarioWeights(catalogue,input.statistics,{stage}));
+    return distributions.get(stage);
+  };
+  const currentDistribution=distributionFor(0);
+  const evidence={kind:'scenarios',profile:'fast',tested:0,skipped:0,depth:1,candidates:0,
+    observedSamples:currentDistribution.samples,stage:currentDistribution.stage,stageSamples:currentDistribution.stageSamples,probabilityBasis:currentDistribution.basis,failures:0,unknown:0};
   const resultOf=c=>{
     const placementScore=c.moves.reduce((s,m)=>s+m.placementScore,0),lineScore=c.moves.reduce((s,m)=>s+m.lineScore,0),acquisitionScore=c.moves.reduce((s,m)=>s+(m.acquisitionScore||0),0);
     return withTarget({moves:c.moves,lines:c.lines,score:placementScore+lineScore+acquisitionScore,placementScore,lineScore,acquisitionScore,depth:c.depth,
@@ -64,15 +74,15 @@ export function solveFast(input,{onProgress}={}){
     }
     if(replay.held<7){best=corrected({moves,board,dots,depth:input.pieces.length,lines:moves.reduce((s,m)=>s+m.cleared.length,0),quality:evaluate(board)});publish(best);}
   }
-  const prepared=preparePolicyCatalogue(input.catalogue||[],input.cols,input.board.length,options),cache=new Map();
-  const geometry=board=>{const key=board.join(',');if(!cache.has(key))cache.set(key,mobilityReport(board,input.cols,prepared));return cache.get(key);};
-  const utility=c=>c.score+c.quality+geometry(c.board).value-c.dots*50;
+  const prepared=preparePolicyCatalogue(catalogue,input.cols,input.board.length,options),cache=new Map();
+  const geometry=(board,lines=0)=>{const distribution=distributionFor(lines),key=`${distribution.stage}/${board}`;if(!cache.has(key))cache.set(key,mobilityReport(board,input.cols,prepared,distribution.weights));return cache.get(key);};
+  const utility=c=>c.score+c.quality+geometry(c.board,c.lines).value-c.dots*50;
   // Target chasing is allowed only among complete plans that preserve the
   // ordinary winner's bottleneck, catalogue coverage and most of its space.
   const targetSafe=(c,normal)=>{
     if(c.depth!==input.pieces.length||skills.dot+skills.reroll-c.dots+(c.acquiredCount||0)>=7||c.dots>normal.dots+1)return false;
-    const before=geometry(normal.board),after=geometry(c.board),minimum=before.minFits<=4?before.minFits:Math.ceil(before.minFits*.75);
-    return after.deadTypes<=before.deadTypes&&after.minFits>=minimum&&after.meanLog>=before.meanLog-.20&&c.quality>=normal.quality-180;
+    const before=geometry(normal.board,normal.lines),after=geometry(c.board,c.lines),minimum=before.minFits<=4?before.minFits:Math.ceil(before.minFits*.75);
+    return after.blockedMass<=before.blockedMass+1e-9&&after.deadTypes<=before.deadTypes&&after.minFits>=minimum&&after.meanLog>=before.meanLog-.20&&c.quality>=normal.quality-180;
   };
   const rememberTarget=c=>{
     if(!goalClass(c))return;
@@ -132,18 +142,29 @@ export function solveFast(input,{onProgress}={}){
   // Two candidates share every sampled future. Only completed common scenarios
   // can change the winner; a timeout is never counted as a failed future.
   if(finalists.length===2&&input.catalogue?.length&&performance.now()<deadline-110){
-    const distribution=scenarioWeights(input.catalogue,input.statistics);evidence.observedSamples=distribution.samples;
     let seed=0x4d4f41;for(const row of input.board)seed=(Math.imul(seed,31)^row)>>>0;
+    // Common random numbers reduce sampling noise. Each candidate uses the
+    // stage reached by its own clears when mapping those numbers to pieces.
+    const futures=finalists.map(({candidate})=>makeScenarios(catalogue,distributionFor(candidate.lines).weights,6,1,seed));
     const totals=[[],[]];
-    for(const scenario of makeScenarios(input.catalogue,distribution.weights,6,1,seed)){
+    for(let scenarioIndex=0;scenarioIndex<6;scenarioIndex++){
       if(performance.now()>deadline-95)break;
       const values=[];
-      for(const {candidate} of finalists){
-        const found=searchPlacements({board:candidate.board,cols:input.cols,pieces:scenario[0],skills:{dot:0,reroll:0},options},
+      for(const [index,{candidate}] of finalists.entries()){
+        const futureInput={board:candidate.board,cols:input.cols,pieces:futures[index][scenarioIndex][0],skills:{dot:0,reroll:0},options};
+        const found=searchPlacements(futureInput,
           {deadline:Math.min(deadline-20,performance.now()+35),width:6,evaluate});nodes+=found.nodes;
-        if(!found.candidates.length)break;
+        if(!found.candidates.length){
+          const proof=findSurvival(futureInput,Math.min(deadline-15,performance.now()+10));nodes+=proof.nodes;
+          if(proof.provedImpossible){values.push(candidate.score-15000+candidate.quality);evidence.failures++;continue;}
+          if(proof.moves){
+            const board=proof.moves.at(-1).boardAfter,lines=proof.moves.reduce((s,m)=>s+m.cleared.length,0);
+            values.push(candidate.score+.92*proof.moves.reduce((s,m)=>s+m.score,0)+evaluate(board)+geometry(board,candidate.lines+lines).value-candidate.dots*50);continue;
+          }
+          evidence.unknown++;break;
+        }
         found.candidates.sort((a,b)=>(b.score+b.quality)-(a.score+a.quality));const next=found.candidates[0];
-        values.push(candidate.score+.92*next.score+next.quality+geometry(next.board).value-candidate.dots*50);
+        values.push(candidate.score+.92*next.score+next.quality+geometry(next.board,candidate.lines+next.lines).value-candidate.dots*50);
       }
       if(values.length!==2){evidence.skipped++;continue;}
       values.forEach((v,i)=>totals[i].push(v));evidence.tested++;
@@ -153,6 +174,10 @@ export function solveFast(input,{onProgress}={}){
       }
     }
   }
-  if(best){best=selectGoal(best);const report=geometry(best.board);evidence.minPlacements=report.minFits;evidence.unplaceableTypes=report.deadTypes;latest=resultOf(best);}
+  if(best){
+    best=selectGoal(best);const report=geometry(best.board,best.lines),distribution=distributionFor(best.lines);
+    evidence.minPlacements=report.minFits;evidence.unplaceableTypes=report.deadTypes;evidence.blockedDrawMass=report.blockedMass;
+    evidence.nextStage=distribution.stage;evidence.nextStageSamples=distribution.stageSamples;latest=resultOf(best);
+  }
   return {...latest,duration:elapsed(),nodes,timedOut:performance.now()>=deadline,strategy:{...evidence}};
 }

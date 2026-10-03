@@ -390,6 +390,8 @@ export default {
   "일시정지": "Paused",
   "0.5초 간격 · 완료 대기": "Every 0.5s · awaiting completion",
   "0.5초 간격으로 인식 중": "Recognizing every 0.5s",
+  "{0}단계 일반 출현 {1}회 · 전체 {2}회로 보정.": "{1} normal draws in stage {0}, regularized with {2} overall observations.",
+  "일반 출현 전체 {0}회 · 현재 단계 표본 없음.": "{0} overall normal draws; no observations for the current stage.",
   "실시간 공유에만 적용됩니다. 추천은 완료를 누를 때까지 유지합니다.": "Live sharing only. The plan stays fixed until you confirm completion.",
   "배치를 반영했습니다. 완료된 보드와 다음 조각을 기다립니다.": "Placements committed. Waiting for the completed board and next pieces.",
   "세 조각 사용 완료 · 다음 세트를 기다립니다.": "All three pieces used · waiting for the next set.",

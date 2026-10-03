@@ -5,8 +5,8 @@ import {fileURLToPath} from 'node:url';
 export const root=fileURLToPath(new URL('../',import.meta.url));
 // Explicit roots keep player data and old local archives out of public bundles.
 const roots=['.github','.gitignore','.gitattributes','.editorconfig','public','tests','docs','examples','scripts',
-  'README.md','CONTRIBUTING.md','SECURITY.md','LICENSE','THIRD_PARTY_NOTICES.md',
-  'package.json','package-lock.json','server.mjs','storage.mjs','start.cmd','test-targets.cmd'];
+  'README.md','AGENTS.md','CONTRIBUTING.md','SECURITY.md','LICENSE','THIRD_PARTY_NOTICES.md',
+  'package.json','package-lock.json','server.mjs','storage.mjs','start.cmd','test-targets.cmd','test-500k.cmd'];
 
 export async function releaseFiles(){
   const files=[];

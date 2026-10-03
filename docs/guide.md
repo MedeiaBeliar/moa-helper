@@ -45,6 +45,8 @@ After following the plan in the game, press **Complete**. The helper applies the
 
 For manual placement, choose **Place manually** on a selected piece and click its origin on the board. Coordinates refer to the top-left of the transformed shape. R rotates, F reflects, and Esc cancels. If a recommendation includes reflection, reflect horizontally before rotating clockwise.
 
+Recommendations use the saved normal-draw records for the stage selected by the cleared-line count. Update that count when joining an ongoing game. Candidate plans that cross a stage boundary are evaluated against the next stage's records. Missing stage records fall back to overall observations. The calculation details show the stage and sample count used; observations estimate the distribution and do not guarantee a score.
+
 ## Screen sharing and pasted images
 
 Select **Screen capture**, then **Start sharing**, and choose the game window. You can also paste an image with Ctrl+V in this mode. Press **Recognize · read one frame** to read the board and three pieces and request a plan. Pasting alone does not analyze the image.

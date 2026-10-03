@@ -16,7 +16,7 @@ export function createCpuSampler(){
 }
 
 export function createResourceBudget({maxParallel=recommendedParallelism(),shouldStop=()=>false,
-  sample=createCpuSampler(),sampleIntervalMs=1000,cooldownRatio=1,minRestMs=100,pollMs=100}={}){
+  sample=createCpuSampler(),sampleIntervalMs=1000,cooldownRatio=1,minRestMs=100,pollMs=100,throttle=true}={}){
   if(!Number.isInteger(maxParallel)||maxParallel<1||maxParallel>4)throw new Error('병렬 계산은 1~4개 사이여야 합니다.');
   let active=0,closed=false,reading={cpuPercent:0,memoryFreeGiB:freemem()/2**30},sampledAt=-Infinity;
   const queue=[];
@@ -28,8 +28,8 @@ export function createResourceBudget({maxParallel=recommendedParallelism(),shoul
   }
   function state(){
     const {cpuPercent,memoryFreeGiB}=refresh();
-    const blocked=cpuPercent>=85||memoryFreeGiB<.5;
-    const throttled=blocked||cpuPercent>=60||memoryFreeGiB<1.5;
+    const blocked=throttle&&(cpuPercent>=85||memoryFreeGiB<.5);
+    const throttled=throttle&&(blocked||cpuPercent>=60||memoryFreeGiB<1.5);
     return {maxParallel,limit:blocked?0:throttled?1:maxParallel,active,queued:queue.length,cpuPercent,memoryFreeGiB,throttled,blocked};
   }
   const pause=ms=>new Promise(resolve=>setTimeout(resolve,ms));

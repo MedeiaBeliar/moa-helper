@@ -6,33 +6,34 @@
 
 ```sh
 npm ci
-npx playwright install chromium
 npm test
-npm run test:ui
+npm run test:parallel
 npm run check:release
 ```
 
-On Linux, use `npx playwright install --with-deps chromium` if system libraries are missing. Dependency installation requires network access; running the application does not.
+Validation is Node-only. Do not start a web server, launch a browser, or run browser automation. See [Project constraints](../AGENTS.md).
 
-`npm test` checks placement, skills, targets, observations, persistence, recognition, and library consolidation with Node's test runner. Tests named HTTP are excluded. `test:ui` intercepts browser requests and stores fixture state in temporary directories. Neither command opens a server or uses the player's `data/state.json`.
+`npm test` checks placement, skills, targets, observations, persistence, recognition, and library consolidation with Node's test runner. Tests named HTTP are excluded. Temporary fixtures isolate runner checks from the player's `data/state.json`.
 
-Browser coverage includes manual placement, Hangul input and IME composition, inline statistics, screen sharing, clipboard images, stage records, worker deadlines, exact-score targets, playback, focus mode, and layouts from 320px to desktop. Picture-in-Picture is exercised when the browser exposes that API.
+The 500k runner checks use two workers, stop and resume temporary checkpoints, and verify separate cap and death results. Constructed endpoint fixtures test lifecycle behavior; their scores are not performance measurements. `npm run test:parallel` separately verifies the original low-load comparison's checkpoint behavior.
 
-The keyboard suite checks automatic search focus, Enter behavior, quick input after IME confirmation, cursor-based ability markers, and isolation from other form fields and dialogs. It also exercises whole-game reset and undo, custom-target persistence, and a real solver result confirmed with auto targets disabled. Target controls are checked in English and at mobile widths.
+Probability regressions check stage boundaries, overall fallback, nonzero weights for unseen shapes, separation of normal and reroll records, and exclusion of unidentified or deleted entries. Paired recommendations on the same board verify that stage records affect ranking even without sampled lookahead. Proven failed future hands must remain in candidate comparisons. Pixel fixtures cover reported recognition errors without a browser.
 
-Statistics navigation checks preserve the current plan, filters, and live video across view changes and browser history. Recognition regressions include the reported blue-bar pixels, three- and five-cell bars at several scales, and genuinely disconnected shapes.
+Legacy browser fixtures remain in `tests/*-browser.mjs` for reference. They are outside the active validation workflow. Do not run `test:ui` or `test:http`. Record the operating system, Node version, hardware, and untested UI behavior when reporting results. The repository does not use hosted CI.
 
-The ability-board fixture reproduces a failed recognition where placed tiles and ability glows interrupt the clear background. Checks assert all 12 occupied cells and the exact 3-, 6-, and 8-cell piece shapes at multiple scales. A live-video fixture moves the game panel without resizing the shared window and verifies recovery from one captured frame, plus recovery after a pixel-read error.
+## Two-game 500k run
 
-Automatic-capture checks use a canvas-backed media stream and controlled observations to verify the 500 ms interval, plan preservation, duplicate suppression, completion-gated statistics, and next-hand acceptance. They also cover pause/resume, error recovery, manual overrides, still images, persisted preferences, localization, and media cleanup.
+On Windows, double-click [`test-500k.cmd`](../test-500k.cmd). No configuration menu appears. The equivalent command is:
 
-Localization checks cover Korean/English switching, reload and cross-tab persistence, dialog validation, keyboard commands, and English layouts. They verify that language changes preserve plans and observations and do not trigger another capture or recognition pass. Unit checks verify translated placeholders and literal player-defined names.
+```sh
+npm run test:500k
+```
 
-Set `PLAYWRIGHT_MODULE_PATH` to reuse an installed Playwright module, or `BROWSER_EXECUTABLE` to use a separate Chromium executable. By default, tests use the Playwright dependency installed by `npm ci` and its browser.
+This preset runs two games concurrently with all automatic targets enabled, using seeds 509 and 510. It reads the saved blocks and stage statistics without changing the save. Both workers run at normal priority without artificial rest or load-based throttling. Each recommendation retains the application's one-second budget.
 
-`npm run test:http` is a separate API test that opens an ephemeral local HTTP server. Do not run it when testing must avoid listening ports. `npm run test:parallel` uses a small temporary fixture to check pause/resume behavior; it is not a score benchmark.
+Each game ends at 500,000 points or verified death. A cap result is marked `cap-reached`, not `dead`. Reaching an intermediate target is recorded and play continues. The display shows progress toward 500,000, points remaining, the next intermediate target, and exact arrivals for each game. The console stays open after completion.
 
-Run regression checks locally before publishing changes. The repository does not use hosted CI. Record the operating system, Node version, browser, and hardware when reporting results.
+Ctrl+C saves checkpoints. Resume with the command printed in the report; the snapshot retains the two-game preset, so it needs no additional settings. A single game may finish before the other. Results are written under `test-results`; this preset does not open a browser or server.
 
 ## Full-game target comparison
 

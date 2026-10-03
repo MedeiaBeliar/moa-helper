@@ -38,7 +38,7 @@ Select a move, play the sequence, or scrub through individual steps to inspect a
 | Area | Behavior |
 | --- | --- |
 | Language | Switches between Korean and English and remembers the choice. Saved block names remain unchanged. |
-| Placement search | Prioritizes placing all three pieces, then compares simultaneous line-clear scores and space for future pieces. |
+| Placement search | Prioritizes placing all three pieces, then compares simultaneous clears and future placement space using observed probabilities for the stage reached by each candidate. |
 | Screen input | Reads a shared screen manually or every 0.5 seconds with optional auto recognition. Pasted images use the recognition button. Video preview uses native browser playback. |
 | Skills | Places dot skills between ordinary pieces and asks for actual reroll results. A completed plan must leave fewer than seven held skills. |
 | Target scores | Combines 16 automatic targets from 100,000 upward with saved custom targets. Custom targets also work on their own. Falls back to a scoring plan when a safe target path is unavailable. |
@@ -68,13 +68,14 @@ The server binds to `127.0.0.1`. Video and clipboard images are analyzed in the 
 
 ```sh
 npm ci
-npx playwright install chromium
 npm test
-npm run test:ui
+npm run test:parallel
 npm run check:release
 ```
 
-Unit and UI tests do not start a web server. UI tests intercept browser requests and use isolated temporary state. HTTP checks and long simulations are separate commands, described in [Testing](docs/testing.md).
+Validation uses Node and isolated temporary state. Do not launch browser tests or a web server. See [Project constraints](AGENTS.md) and [Testing](docs/testing.md).
+
+On Windows, `test-500k.cmd` starts two concurrent games with automatic targets enabled and no setup prompts. Each runs without artificial rest until 500,000 points or verified death. Scores, target arrivals, and checkpoints are saved under `test-results`. The existing `test-targets.cmd` retains its low-load comparison menu.
 
 To create a source ZIP for a new GitHub repository:
 
@@ -88,7 +89,7 @@ Extract `releases/moa-helper-github.zip` and use its `moa-helper` directory as t
 
 - [User guide](docs/guide.md): input, capture, skills, targets, statistics, and backups
 - [Architecture](docs/architecture.md): modules, search, and state transitions
-- [Testing](docs/testing.md): regression checks and simulations that run until death
+- [Testing](docs/testing.md): Node checks, 500k runs, and comparisons through death
 - [Contributing](CONTRIBUTING.md): change scope, reproduction cases, and validation
 - [Security](SECURITY.md): local-server scope and vulnerability reporting
 

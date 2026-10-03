@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFile} from 'node:fs/promises';
 import {solve,place,variants} from '../public/solver.js';
-import {scenarioWeights,makeScenarios,preparePolicyCatalogue,mobilityReport} from '../public/policy.js';
+import {createEvaluator,scenarioWeights,makeScenarios,preparePolicyCatalogue,mobilityReport} from '../public/policy.js';
 import {initialState,validateState} from '../storage.mjs';
 const catalogue=JSON.parse(await readFile(new URL('./fixtures/catalogue.json',import.meta.url),'utf8')).map((p,i)=>({...p,id:`b${i}`}));
 function replay(input,result){
@@ -55,4 +55,68 @@ test('old time settings migrate to the fixed one-second budget without changing 
   const migrated=validateState(old);assert.equal(migrated.options.timeLimit,850);assert.equal(migrated.options.strategyVersion,3);
   for(const key of ['board','blocks','slots','skills','statistics'])assert.deepEqual(migrated[key],old[key]);
   const fast=validateState({...migrated,options:{...migrated.options,timeLimit:800}});assert.equal(fast.options.timeLimit,850);
+});
+
+test('stage probabilities shrink toward overall normal draws and exclude reroll, unknown and deleted identities',()=>{
+  const blocks=[{id:'a'},{id:'b'}],statistics={entries:[
+    {blockId:'a',normal:99,reroll:0,stages:{1:{normal:90,reroll:0},5:{normal:9,reroll:0}}},
+    {blockId:'b',normal:99,reroll:900,stages:{1:{normal:9,reroll:0},5:{normal:90,reroll:900}}},
+    {blockId:null,normal:10000,stages:{5:{normal:10000}}},
+    {blockId:'deleted',normal:10000,stages:{5:{normal:10000}}}
+  ]},before=structuredClone(statistics);
+  const early=scenarioWeights(blocks,statistics,{stage:1}),late=scenarioWeights(blocks,statistics,{stage:5});
+  assert.deepEqual(early.weights,[105,24]);assert.deepEqual(late.weights,[24,105]);
+  assert.equal(late.samples,198);assert.equal(late.stageSamples,99);
+  assert.equal(late.basis,'stage-with-overall-prior');
+  for(const stage of [null,3,undefined]){
+    const fallback=scenarioWeights(blocks,statistics,{stage});assert.deepEqual(fallback.weights,[100,100]);assert.equal(fallback.basis,'overall');
+  }
+  const reroll=scenarioWeights(blocks,statistics,{stage:5,source:'reroll'});
+  assert.equal(reroll.samples,900);assert.ok(reroll.probabilities[1]>.98);
+  assert.deepEqual(statistics,before);
+});
+
+test('weighted placement space protects the frequently drawn shape without declaring rare shapes impossible to draw',()=>{
+  const blocks=[{id:'horizontal',cells:[[0,0],[1,0],[2,0]]},{id:'vertical',cells:[[0,0],[0,1],[0,2]]}];
+  const prepared=preparePolicyCatalogue(blocks,4,4,{rotate:false,reflect:false});
+  const horizontal=[15,0,15,0],vertical=[5,5,5,5];
+  const h=mobilityReport(horizontal,4,prepared,[90,10]),v=mobilityReport(vertical,4,prepared,[90,10]);
+  assert.equal(h.deadTypes,v.deadTypes);assert.ok(h.value>v.value);
+  assert.equal(h.blockedMass,.1);assert.equal(v.blockedMass,.9);
+  assert.ok(mobilityReport(vertical,4,prepared,[10,90]).value>mobilityReport(horizontal,4,prepared,[10,90]).value);
+  const unseen=scenarioWeights(blocks,{entries:[{blockId:'horizontal',normal:5000,stages:{5:{normal:5000}}}]},{stage:5});
+  assert.ok(unseen.probabilities[1]>0,'unseen shapes retain a nonzero prior');
+});
+
+test('recommendations respond to stage records even when there is no time for sampled lookahead',async()=>{
+  const {solveFast}=await import('../public/fast.js');
+  const blocks=[{id:'a',cells:[[0,0],[1,0],[2,0]]},{id:'b',cells:[[0,0],[0,1],[0,2]]},{id:'u',cells:[[0,0]]}];
+  const statistics={entries:[{blockId:'a',normal:1000,stages:{1:{normal:1000},5:{normal:0}}},{blockId:'b',normal:1000,stages:{1:{normal:0},5:{normal:1000}}}]};
+  const input={board:[9,9,2,0],cols:4,pieces:[{id:'p',cells:[[0,0]]}],catalogue:blocks,statistics,skills:{dot:0,reroll:0},options:{rotate:false,reflect:false,timeLimit:100}};
+  const early=solveFast({...input,clearedLines:0}),late=solveFast({...input,clearedLines:151});
+  assert.equal(early.complete,true);assert.equal(late.complete,true);
+  assert.equal(early.strategy.tested,0);assert.equal(late.strategy.tested,0);
+  assert.equal(early.strategy.stage,1);assert.equal(late.strategy.stage,5);
+  assert.equal(late.strategy.observedSamples,2000);assert.equal(late.strategy.stageSamples,1000);
+  const prepared=preparePolicyCatalogue(blocks,4,4,input.options),a=early.moves.at(-1).boardAfter,b=late.moves.at(-1).boardAfter;
+  const evaluate=createEvaluator(4),value=(board,stage)=>evaluate(board)+mobilityReport(board,4,prepared,scenarioWeights(blocks,statistics,{stage}).weights).value;
+  assert.ok(value(a,1)>value(b,1));assert.ok(value(b,5)>value(a,5));
+});
+
+test('next-hand evaluation changes stage on the exact cleared-line boundaries',async()=>{
+  const {solveFast}=await import('../public/fast.js');
+  for(const [lines,stage]of [[30,1],[60,2],[100,3],[150,4]]){
+    const input={board:[3,0],cols:3,pieces:[{id:'p',cells:[[0,0]]}],catalogue:[{id:'a',cells:[[0,0]]}],statistics:{entries:[{blockId:'a',normal:100,stages:{[stage]:{normal:40},[stage+1]:{normal:60}}}]},clearedLines:lines,skills:{dot:0,reroll:0},options:{timeLimit:100}};
+    const result=solveFast(input);assert.equal(result.complete,true);assert.equal(result.lines,1);
+    assert.equal(result.strategy.stage,stage);assert.equal(result.strategy.nextStage,stage+1);assert.equal(result.strategy.nextStageSamples,60);
+  }
+});
+
+test('proven failed future hands count in comparisons instead of being discarded as timeouts',async()=>{
+  const {solveFast}=await import('../public/fast.js');
+  const blocks=[{id:'a',cells:[[0,0],[1,0],[2,0]]},{id:'b',cells:[[0,0],[0,1],[0,2]]},{id:'u',cells:[[0,0]]}];
+  const input={board:[3,8,6,2],cols:4,pieces:[{id:'p',cells:[[0,0]]}],catalogue:blocks,clearedLines:151,skills:{dot:0,reroll:0},
+    statistics:{entries:blocks.map((b,i)=>({blockId:b.id,normal:i===2?40:800,stages:{5:{normal:i===2?20:400}}}))},options:{rotate:false,reflect:false,timeLimit:850}};
+  const result=solveFast(input);assert.equal(result.complete,true);
+  assert.ok(result.strategy.failures>0);assert.ok(result.strategy.tested>0);assert.equal(result.strategy.unknown,0);assert.equal(result.strategy.skipped,0);
 });

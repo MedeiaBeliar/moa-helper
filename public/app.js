@@ -379,7 +379,9 @@ function renderRecommendations() {
     $('reroll-result').value=selected;$('apply-reroll').disabled=!$('reroll-result').value;
   }
   const strategy=result.strategy;
-  const forecast=strategy?t` ${state.blocks.length}종 공간 평가 · 향후 ${strategy.depth}세트 시나리오 ${strategy.tested}개 비교${strategy.skipped?t` · 시간 부족 ${strategy.skipped}개 제외`:''}. ${strategy.observedSamples?t`일반 출현 ${strategy.observedSamples}회 관측을 보정해 참고합니다.`:t('출현 기록이 없어 균등한 가상 시나리오를 사용합니다.')} 미래는 추가 스킬 없이 점검하며 실제 확률·생존을 보장하지 않습니다.`:'';
+  const probabilityStage=strategy?.nextStage??strategy?.stage,probabilitySamples=strategy?.nextStageSamples??strategy?.stageSamples;
+  const probabilitySource=probabilitySamples?t`${probabilityStage}단계 일반 출현 ${probabilitySamples}회 · 전체 ${strategy.observedSamples}회로 보정.`:strategy?.observedSamples?t`일반 출현 전체 ${strategy.observedSamples}회 · 현재 단계 표본 없음.`:t('출현 기록이 없어 균등한 가상 시나리오를 사용합니다.');
+  const forecast=strategy?t` ${state.blocks.length}종 공간 평가 · 향후 ${strategy.depth}세트 시나리오 ${strategy.tested}개 비교${strategy.skipped?t` · 시간 부족 ${strategy.skipped}개 제외`:''}. ${probabilitySource} 미래는 추가 스킬 없이 점검하며 실제 확률·생존을 보장하지 않습니다.`:'';
   $('search-meta').textContent=t`조각 배치 = 칸 수만큼 점수 · 동시 제거 n줄 = 300 × n²점. 직접 표시한 능력 획득은 1개당 50점과 보유 한도를 반영합니다. 새로 생길 능력은 예측하지 않습니다. 점 찍기 자체도 1점을 얻습니다. ${(result.duration/1000).toFixed(2)}초 · ${result.nodes.toLocaleString()}개 후보 · 제한 탐색${result.timedOut?t(' (시간 한도 도달)'):''}.${forecast} 좌표는 변형 후 모양의 왼쪽 위 기준입니다.`;
 }
 function render() {
@@ -495,7 +497,7 @@ function solveBoard() {
   };
   worker.onerror=()=>{if(id!==generation)return;invalidate();render();message(()=>(t('탐색 중 오류가 발생했습니다. 다시 시도해 주세요.')),true);};
   searchTimer=setTimeout(()=>finish(latest?{result:{...latest,timedOut:true,duration:wallLimit}}:{error:t('1초 제한에 도달했습니다. 보드를 확인한 뒤 다시 계산해 주세요.')}),wallLimit);
-  worker.postMessage({id,input:{board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:state.statistics,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,manualTargets:state.manualTargets,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}}});render();
+  worker.postMessage({id,input:{board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:state.statistics,clearedLines:state.clearedLines,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,manualTargets:state.manualTargets,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}}});render();
 }
 function finishTarget(){
   try{

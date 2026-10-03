@@ -45,7 +45,7 @@ test('parallel runner checkpoints every game, stops honestly, and resumes each s
       const saved=JSON.parse(await readFile(`${base}-${id}.json`,'utf8'));
       assert.ok(saved.timing.calls>calls);assert.equal(saved.deathVerified,false);assert.equal(saved.status,'stopped-by-user');
     }
-    assert.match(await readFile(`${base}-comparison.md`,'utf8'),/중간 종료/);
+    assert.match(await readFile(`${base}-comparison.md`,'utf8'),/interrupted/);
   }finally{
     assert.ok(path.resolve(directory).startsWith(path.resolve(tmpdir())+path.sep));await rm(directory,{recursive:true,force:true});
   }
