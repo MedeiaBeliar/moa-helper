@@ -125,7 +125,7 @@ export function readBoard(image,rect,cols=10,rows=16,sensitivity=1) {
   const confidence=confidences.reduce((a,b)=>a+b,0)/confidences.length;
   return {board,confidence,colors,uncertain:confidences.filter(v=>v<.6).length};
 }
-export function readPiece(image,rect) {
+export function readPiece(image,rect,{pitch:expectedPitch}={}) {
   if(!validRect(rect,image)) return {cells:[],status:'unknown',confidence:0,reason:'조각 영역을 다시 지정하세요.'};
   const w=Math.floor(rect.w),h=Math.floor(rect.h), mask=new Uint8Array(w*h);
   let white=0,teal=0;
@@ -151,22 +151,27 @@ export function readPiece(image,rect) {
     if(queue.length>=3) components.push({x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1,area:queue.length});
   }
   if(!components.length) return {cells:[],status:white/(w*h)>.6?'empty':'unknown',confidence:white/(w*h)>.6?.85:0};
-  const tiles=components.filter(c=>c.w>=3&&c.h>=3&&c.w/c.h>.65&&c.w/c.h<1.5&&c.w<w*.95&&c.h<h*.95);
+  const tiles=components.filter(c=>c.w>=2&&c.h>=2&&c.w/c.h>=.6&&c.w/c.h<=1.6&&c.w<w*.95&&c.h<h*.95);
   if(!tiles.length) return {cells:[],status:'unknown',confidence:0,reason:'블록 경계가 흐립니다. 조각 영역을 조정하거나 직접 수정하세요.'};
   const sizes=tiles.map(c=>(c.w+c.h)/2).sort((a,b)=>a-b),size=sizes[Math.floor(sizes.length/2)];
   const actual=tiles.filter(c=>Math.abs(c.w-size)<size*.45&&Math.abs(c.h-size)<size*.45);
   const minX=Math.min(...actual.map(c=>c.x)),minY=Math.min(...actual.map(c=>c.y));
-  let pitch=size+1;
+  // The saturated interior of a blue tile can be half its actual width. It is
+  // not the grid pitch. Use the board's scale, then refine from tile distances.
+  // Without that scale, only infer adjacency when the nearest gap is plausible;
+  // truly disconnected shapes must retain their empty cells.
+  const scaled=Number.isFinite(expectedPitch)&&expectedPitch>=3;
+  let pitch=scaled?expectedPitch:size+1;
   const gaps=[];
   for(const a of actual) for(const b of actual) {
     if(Math.abs(a.y-b.y)<size*.4&&b.x>a.x+size*.7) gaps.push(b.x-a.x);
     if(Math.abs(a.x-b.x)<size*.4&&b.y>a.y+size*.7) gaps.push(b.y-a.y);
   }
-  // A random shape can have gaps with no adjacent tiles. Do not compress a
-  // two-cell gap into one cell just because it is the shortest observed gap.
   if(gaps.length) {
-    const estimates=gaps.map(gap=>gap/Math.max(1,Math.round(gap/(size+1)))).sort((a,b)=>a-b);
-    pitch=estimates[Math.floor(estimates.length/2)];
+    const nearest=Math.min(...gaps);
+    if(!scaled&&nearest<=size*1.75+1)pitch=nearest;
+    const estimates=gaps.map(gap=>gap/Math.max(1,Math.round(gap/pitch))).filter(value=>!scaled||Math.abs(value-expectedPitch)<=expectedPitch*.2).sort((a,b)=>a-b);
+    if(estimates.length)pitch=estimates[Math.floor(estimates.length/2)];
   }
   const cells=actual.map(c=>[Math.round((c.x-minX)/pitch),Math.round((c.y-minY)/pitch)]);
   const unique=[...new Map(cells.map(c=>[c.join(','),c])).values()];
@@ -180,6 +185,9 @@ export function recognize(image,calibration,settings={}) {
   const {cols=10,rows=16,sensitivity=1}=settings;
   const result=readBoard(image,calibration.board,cols,rows,sensitivity);
   if(result.error) return result;
-  const pieces=calibration.slots.map((rect,id)=>({id,...readPiece(image,rect)}));
+  // Miniature cells are 8px apart for each 26px game-board cell. A manual
+  // region changes the crop only; it does not change this shared image scale.
+  const pitch=calibration.board.w/cols*8/26;
+  const pieces=calibration.slots.map((rect,id)=>({id,...readPiece(image,rect,{pitch})}));
   return {...result,pieces,signature:JSON.stringify([result.board,pieces.map(p=>[p.status,p.cells])]),safe:result.confidence>.85&&result.uncertain===0&&pieces.every(p=>p.status==='ready'||p.status==='used')};
 }

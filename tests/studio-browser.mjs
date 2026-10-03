@@ -46,6 +46,32 @@ try{
   await page.waitForTimeout(550);
   await page.screenshot({path:'test-results/studio-desktop.png'});
   const snapshot=await store.read();
+  assert.equal(await page.locator('#statistics-screen').isVisible(),false);
+  const planBeforeStats=await page.locator('#moves').textContent();
+  await page.locator('#open-statistics').click();
+  assert.equal(await page.locator('.board-panel').isVisible(),false);
+  assert.equal(await page.locator('.recommendations').isVisible(),false);
+  assert.equal(await page.locator('.library').isVisible(),false);
+  assert.equal(await page.locator('#statistics-screen').isVisible(),true);
+  assert.equal(await page.locator('#open-statistics').getAttribute('aria-current'),'page');
+  assert.equal(await page.locator('#statistics-title').evaluate(node=>node===document.activeElement),true);
+  assert.ok(page.url().endsWith('#statistics'));
+  await page.locator('#statistics-search').fill('ㅋ');await page.locator('#statistics-sort').selectOption('normal');
+  for(const width of [1440,768,375,320]){
+    await page.setViewportSize({width,height:1080});
+    assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),`statistics overflow at ${width}px`);
+    if(width===375)await page.screenshot({path:'test-results/statistics-screen-mobile.png',fullPage:true});
+  }
+  await page.setViewportSize({width:1440,height:1080});await page.waitForTimeout(750);await page.screenshot({path:'test-results/statistics-screen-desktop.png'});
+  await page.locator('#statistics-back').click();
+  assert.equal(await page.locator('#statistics-screen').isVisible(),false);
+  assert.equal(await page.locator('#moves').textContent(),planBeforeStats);
+  await page.goBack();assert.equal(await page.locator('#statistics-screen').isVisible(),true);
+  assert.equal(await page.locator('#statistics-search').inputValue(),'ㅋ');
+  assert.equal(await page.locator('#statistics-sort').inputValue(),'normal');
+  await page.locator('#statistics-search').fill('');
+  await page.goForward();assert.equal(await page.locator('.board-panel').isVisible(),true);
+  assert.deepEqual(await store.read(),snapshot,'screen navigation preserves the current game and plan');
   await page.locator('#play-plan').click();
   await page.waitForFunction(()=>document.querySelector('#play-plan').getAttribute('aria-pressed')==='false');
   assert.deepEqual(await store.read(),snapshot,'playback is presentation only');
@@ -72,6 +98,7 @@ try{
   await page.locator('.draw-statistics').screenshot({path:'test-results/studio-statistics.png'});
   await page.locator('.statistics-bar').first().click();assert.equal(await page.locator('#statistics-rows tr').count(),1);
   await page.locator('#statistics-search').fill('');
+  await page.locator('#statistics-back').click();
   await page.emulateMedia({reducedMotion:'reduce'});
   await page.locator('#complete-plan').click();await saved();
   assert.equal(await page.locator('#motion-layer').evaluate(n=>n.childElementCount),0);

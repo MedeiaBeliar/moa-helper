@@ -8,6 +8,7 @@ export class ScreenCapture {
     this.callbacks=callbacks;this.frame=document.createElement('canvas');this.video=$('capture-video');
     this.video.muted=true;this.video.playsInline=true;this.token=0;this.imageRequest=0;this.active=false;this.hasFrame=false;
     this.canvas=$('capture-canvas');this.sensitivity=1;this.calibration=null;
+    document.querySelector('.capture-calibration').addEventListener('toggle',()=>this.draw());
     $('capture-start').onclick=()=>this.start();$('capture-stop').onclick=()=>this.stop();
     $('capture-sample').onclick=()=>this.sample();$('capture-read').onclick=()=>this.analyze();
     $('capture-locate').onclick=()=>{this.calibration=null;this.latest=null;this.resetPlan();this.draw();this.status(()=>(t('영역을 다시 찾도록 설정했습니다. 인식 버튼을 누르세요.')));};
@@ -37,7 +38,7 @@ export class ScreenCapture {
     this.canvas.onpointercancel=()=>{this.drag=null;this.draw();};
     document.addEventListener('keydown',e=>{if(e.key==='Escape'){this.target=null;this.drag=null;this.draw();}});
     document.addEventListener('paste',event=>{
-      if(!this.active||document.querySelector('dialog[open]'))return;
+      if(!this.active||document.body.classList.contains('statistics-mode')||document.querySelector('dialog[open]'))return;
       const data=event.clipboardData;
       const file=[...(data?.items||[])].filter(item=>item.kind==='file'&&item.type.startsWith('image/')).map(item=>item.getAsFile()).find(Boolean)
         ||[...(data?.files||[])].find(file=>file.type.startsWith('image/'));
@@ -196,7 +197,7 @@ export class ScreenCapture {
         }
       }
       ctx.textAlign='left';ctx.textBaseline='bottom';ctx.font=`bold ${fontSize}px sans-serif`;
-      [board,...slots].forEach((r,i)=>{
+      if(this.target||this.drag||document.querySelector('.capture-calibration').open)[board,...slots].forEach((r,i)=>{
         ctx.strokeStyle=color(i?'skill':'accent');ctx.strokeRect(r.x,r.y,r.w,r.h);
         const label=i?t`조각 ${i}`:`${cols} × ${rows}`,w=ctx.measureText(label).width+8;
         ctx.fillStyle=ctx.strokeStyle;ctx.fillRect(r.x,Math.max(0,r.y-fontSize-6),w,fontSize+6);

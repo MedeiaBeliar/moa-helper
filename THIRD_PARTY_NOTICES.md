@@ -8,6 +8,8 @@ The interface uses [Pretendard 1.3.9](https://github.com/orioncactus/pretendard/
 
 MapleStory trademarks, logos, characters, game screens, and related works belong to Nexon and their respective rights holders. `public/sample.png` and `public/sample-game.png` are game reference images used for recognition demonstrations and regression checks. The project's MIT license does not grant rights to these game assets.
 
+`tests/fixtures/blue-bar-pixels.json` contains a small pixel sample from a reported game screenshot for the blue-block recognition regression. The same asset notice applies to this sample.
+
 This is an unofficial Hangul Moa Moa assistant for personal use and learning. It is not developed, approved, endorsed, or sponsored by Nexon and is not affiliated with MapleStory services.
 
 ## UI reference

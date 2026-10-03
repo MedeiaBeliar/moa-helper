@@ -84,6 +84,7 @@ try{
     return texts;
   });
   assert.deepEqual(untranslated,[],'English interface has no untranslated visible prose');
+  await page.locator('#statistics-back').click();
   // The dialog retains unsaved names and dots while its labels and errors change.
   await page.locator('#new-block').click();await page.locator('#block-name').fill('점 찍기');
   for(let y=0;y<3;y++)await page.locator(`.dot-cell[data-x="0"][data-y="${y}"]`).click();
@@ -149,7 +150,7 @@ try{
   const reroll=initialState();reroll.blocks=state.blocks;reroll.skills={dot:0,reroll:7};
   const unit=reroll.blocks.find(block=>block.cells.length===1);
   reroll.slots=Array.from({length:3},(_,i)=>({instanceId:`r${i}`,blockId:unit.id,name:unit.name,cells:unit.cells}));
-  await store.write(reroll);await page.reload();await saved();
+  await store.write(reroll);await page.locator('#tab-manual').click();await page.reload();await saved();
   await page.locator('#solve').click();await page.locator('#reroll-panel').waitFor();
   assert.match(await page.locator('#reroll-title').textContent(),/reroll piece/);
   await page.locator('#reroll-name').fill('.');await page.locator('#reroll-name').press('Enter');

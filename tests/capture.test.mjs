@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 import {stateFromCapture,rerollFromCapture,findBlock} from '../public/capture-state.js';
 import {initialState,validateState} from '../storage.mjs';
 import {recordNormalDraws,statisticsRows} from '../public/statistics.js';
@@ -72,4 +73,33 @@ test('replacing a misrecognized shape before placement records only the correcte
   const done=completePlan(corrected,{complete:true,moves});
   assert.equal(statisticsRows(done).rows.find(r=>r.blockId==='domino').normal,0);
   assert.equal(statisticsRows(done).rows.find(r=>r.blockId==='unit').normal,3);
+});
+
+
+test('blue three- and five-cell bars use grid spacing, not the narrow colored interior',()=>{
+  for(const scale of [.7,1,1.5,2])for(const length of [3,5])for(const vertical of [false,true]){
+    const pitch=8*scale,width=100,height=100,image={width,height,data:new Uint8ClampedArray(width*height*4).fill(255)};
+    const expected=Array.from({length},(_,i)=>vertical?[0,i]:[i,0]);
+    for(const [cx,cy]of expected){
+      const left=Math.round(10+cx*pitch),top=Math.round(10+cy*pitch),size=Math.max(2,Math.round(3*scale));
+      for(let y=top;y<top+size;y++)for(let x=left;x<left+size;x++)image.data.set([35,145,255,255],(y*width+x)*4);
+    }
+    const actual=readPiece(image,{x:0,y:0,w:width,h:height},{pitch});
+    assert.equal(actual.status,'ready',JSON.stringify({scale,length,vertical,actual}));
+    assert.deepEqual(actual.cells,expected,JSON.stringify({scale,length,vertical}));
+  }
+});
+
+test('reported blue miniature keeps all three consecutive cells at reduced resolution',()=>{
+  const fixture=JSON.parse(readFileSync(new URL('./fixtures/blue-bar-pixels.json',import.meta.url)));
+  const image={width:fixture.width,height:fixture.height,data:Buffer.from(fixture.rgba,'base64')};
+  const actual=readPiece(image,{x:0,y:0,w:image.width,h:image.height},{pitch:fixture.boardCellPitch*8/26});
+  assert.equal(actual.status,'ready');assert.deepEqual(actual.cells,[[0,0],[1,0],[2,0]]);
+});
+
+test('board-scale pitch preserves genuine gaps even when colored tile interiors are small',()=>{
+  const width=60,height=60,image={width,height,data:new Uint8ClampedArray(width*height*4).fill(255)},expected=[[0,0],[2,0],[2,2]];
+  for(const [cx,cy]of expected)for(let y=10+cy*8;y<13+cy*8;y++)for(let x=10+cx*8;x<13+cx*8;x++)image.data.set([35,145,255,255],(y*width+x)*4);
+  const actual=readPiece(image,{x:0,y:0,w:width,h:height},{pitch:8});
+  assert.equal(actual.status,'ready');assert.deepEqual(actual.cells,expected);
 });

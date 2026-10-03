@@ -89,7 +89,7 @@ The search prioritizes completing the set and retaining useful space. It seeks a
 
 ## Draw statistics
 
-**Draw statistics** shows normal draws, rerolls, and combined observations for all stages or a selected stage.
+**Draw statistics** opens a separate screen with normal draws, rerolls, and combined observations for all stages or a selected stage. **Back to play** returns to the previous manual or capture screen, preserving the current plan and live sharing session. Browser Back and Forward also navigate between screens. Filters remain in place while switching screens.
 
 [View the statistics panel](images/statistics.png).
 
@@ -105,7 +105,7 @@ A normal draw keeps the stage at which it appeared, even if later placements cro
 
 Manually selected pieces are recorded together at the first recommendation or direct placement. Recognized pieces are recorded individually when committed. Manual rerolls are recorded when their results are confirmed; recognized rerolls are recorded when placed. Recommending again or reloading does not recount the same draw.
 
-Edit a count and press Enter or leave the field to save its cumulative value. Stage edits update the overall total. An overall total cannot be lower than the sum of its stage records. **Reset all statistics** clears all records regardless of search or stage filters; Undo can restore them.
+Edit a count and press Enter or leave the field to save its cumulative value. Stage edits update the overall total. An overall total cannot be lower than the sum of its stage records. **Reset all statistics** clears all records regardless of search or stage filters; the statistics screen's **Undo** button can restore them.
 
 At the start of a new game, set score and cleared lines to zero. Clearing the board or resetting selected pieces does not reset those values.
 
@@ -120,7 +120,7 @@ At the start of a new game, set score and cleared lines to zero. Clearing the bo
 | `/` | Focus block search |
 | `Ctrl+K` / `⌘K` | Open the command menu |
 | `R` / `F` | Rotate / reflect during manual placement |
-| `Esc` | Cancel placement or exit focus mode |
+| `Esc` | Cancel placement, exit focus mode, or return from statistics |
 | Arrow keys / Space | Navigate / toggle board and editor cells |
 
 The operating system's reduced-motion preference disables decorative transitions.

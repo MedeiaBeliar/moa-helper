@@ -2,6 +2,7 @@
 export default {
   "점 찍기": "Dot",
   "블록": "Block",
+  "← 플레이로 돌아가기": "← Back to play",
   "감지 {0}": "Detected {0}",
   "브라우저 임시 백업을 저장하지 못했습니다. 로컬 파일 저장 상태를 확인하세요.": "Could not save the browser recovery copy. Check the file save status.",
   "저장 중…": "Saving…",

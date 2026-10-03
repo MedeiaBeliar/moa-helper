@@ -28,7 +28,7 @@ try{
     try{return route.fulfill({contentType:types[path.extname(file)]||'application/octet-stream',body:await readFile(file)});}catch{return route.fulfill({status:404,body:'Not found'});}
   });
   const saved=()=>page.getByText('파일에 저장됨',{exact:true}).waitFor();
-  const scope=value=>page.locator('#statistics-stage').selectOption(String(value));
+  const scope=async value=>{await page.locator('#open-statistics').click();await page.locator('#statistics-stage').selectOption(String(value));};
   const summary=()=>page.locator('#statistics-total').textContent();
   const counter=async value=>{await page.locator('#cleared-lines').fill(String(value));await page.locator('#cleared-lines').press('Enter');};
   const count=(id,source)=>page.locator(`#statistics-rows tr[data-block-id="${id}"] input[data-source="${source}"]`);
@@ -39,15 +39,15 @@ try{
   await scope('unknown');assert.equal(await summary(),'일반 10회 · 바꾸기 2회 · 합계 12회');
   await scope(1);assert.equal(await summary(),'일반 0회 · 바꾸기 0회 · 합계 0회');
   await counter(30);await saved();assert.equal(await page.locator('#current-stage').textContent(),'1단계');
-  await page.locator('#search-blocks').fill('...');await page.locator('#search-blocks').press('Enter');
+  await page.locator('#tab-manual').click();await page.locator('#search-blocks').fill('...');await page.locator('#search-blocks').press('Enter');
   await page.getByRole('button',{name:'직접 배치',exact:true}).first().click();
   await page.locator('.board-cell[data-x="2"][data-y="0"]').click();await saved();
   assert.equal(await page.locator('#cleared-lines').inputValue(),'31');assert.equal(await page.locator('#current-stage').textContent(),'2단계');
   assert.equal(await summary(),'일반 3회 · 바꾸기 0회 · 합계 3회');
   await scope(2);assert.equal(await summary(),'일반 0회 · 바꾸기 0회 · 합계 0회');
-  await page.locator('#solve').click();await page.waitForFunction(()=>!document.querySelector('#complete-plan').hidden);
+  await page.locator('#tab-manual').click();await page.locator('#solve').click();await page.waitForFunction(()=>!document.querySelector('#complete-plan').hidden);
   await saved();await scope('all');assert.equal(await summary(),'일반 13회 · 바꾸기 2회 · 합계 15회');
-  await page.locator('#complete-plan').click();await saved();assert.equal((await store.read()).clearedLines,31);
+  await page.locator('#statistics-back').click();await page.locator('#complete-plan').click();await saved();assert.equal((await store.read()).clearedLines,31);
   await scope(2);await edit('b','normal',6);assert.equal(await summary(),'일반 6회 · 바꾸기 0회 · 합계 6회');
   await edit('a','normal',2);await edit('a','reroll',1);assert.equal(await summary(),'일반 8회 · 바꾸기 1회 · 합계 9회');
   await page.locator('#statistics-search').fill('.');
@@ -68,7 +68,7 @@ try{
   // Reset is global even while a stage with no records is selected; undo restores all scopes.
   const beforeReset=await store.read();await scope(5);assert.equal(await page.locator('#statistics-reset').isDisabled(),false);
   await page.locator('#statistics-reset').click();await saved();assert.deepEqual((await store.read()).statistics,{entries:[]});
-  await page.locator('#undo').click();await saved();assert.deepEqual((await store.read()).statistics,beforeReset.statistics);
+  await page.locator('#statistics-undo').click();await saved();assert.deepEqual((await store.read()).statistics,beforeReset.statistics);
   // An older running server must not silently drop the newly added data fields.
   const oldResponse=await store.read();delete oldResponse.captureStatsVersion;
   await page.route('**/api/state',route=>route.request().method()==='GET'?route.fulfill({contentType:'application/json',body:JSON.stringify(oldResponse)}):route.fallback());

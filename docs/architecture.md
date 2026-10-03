@@ -41,7 +41,11 @@ Future-piece evaluation uses smoothed overall normal-draw observations. Stage-sp
 
 [`capture.js`](../public/capture.js) uses a native video element for playback and a transparent canvas for overlays. The recognition button copies one frame for [`vision.js`](../public/vision.js). Adjusting sensitivity or calibration does not trigger another recognition pass. [`capture-state.js`](../public/capture-state.js) reconciles observations with the existing slots.
 
+Miniature tile spacing is initialized from the game board's scale and refined from distances between detected tiles. A blue tile's saturated interior can be narrower than its full cell; using that interior as the spacing would insert false gaps in connected shapes. Genuine gaps remain empty. Calibration labels appear only while the region controls are open or a region is being dragged.
+
 [`studio.js`](../public/studio.js) manages selection motion, plan playback, focus mode, and keyboard navigation. Animations and timers run during interactions. Hidden documents and reduced-motion settings cancel decorative effects. This module does not add a capture-processing loop.
+
+Manual, capture, and statistics are separate views with hash history. Opening statistics hides the playfield without committing moves or stopping a live stream. Clipboard images are accepted only in the visible capture view.
 
 Layout is defined in [`index.html`](../public/index.html), [`manual.css`](../public/manual.css), and [`tokens.css`](../public/tokens.css). A local Pretendard variable font supplies the interface typography.
 

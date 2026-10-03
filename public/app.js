@@ -21,7 +21,7 @@ let worker, searchTimer, generation = 0, result = null, preview = -1, busy = fal
 let targetPaused=false;
 let mode = 'paint', placement = null, hover = null, drag = null, dotDrag = null;
 let editorId = null, dots = new Set(), history = [], pipWindow = null;
-let inputMode='manual';
+let inputMode='manual',activeScreen='manual';
 let lastMessage=null,editorError=null;
 const colors = getComputedStyle(document.documentElement);
 const color = name => colors.getPropertyValue(`--color-${name}`).trim();
@@ -45,13 +45,32 @@ const capture=new ScreenCapture({
     remember();state=next;placement=null;hover=null;mode='paint';changed();solveBoard();
   }
 });
-const studio=new StudioUI({manual:()=>switchInput('manual'),capture:()=>switchInput('capture'),preview:index=>{if(!result?.moves.length)return;preview=index<0?-2:index;placement=null;hover=null;renderBoard();renderRecommendations();renderTray();renderPip();}});
-function switchInput(next){
-  if(!loaded)return;studio.stopPlayback();inputMode=next;const sharing=next==='capture';
-  document.body.classList.toggle('capture-mode',sharing);$('capture-panel').hidden=!sharing;
-  for(const id of ['manual','capture']){$(`tab-${id}`).classList.toggle('selected',id===next);$(`tab-${id}`).setAttribute('aria-pressed',String(id===next));}
-  capture.setActive(sharing);render();
+const studio=new StudioUI({manual:()=>switchInput('manual'),capture:()=>switchInput('capture'),statistics:()=>switchInput('statistics'),resume:()=>switchInput(inputMode),preview:index=>{if(!result?.moves.length)return;preview=index<0?-2:index;placement=null;hover=null;renderBoard();renderRecommendations();renderTray();renderPip();}});
+function switchInput(next,{navigate=true,focus=true}={}){
+  if(!loaded||!['manual','capture','statistics'].includes(next))return;
+  studio.stopPlayback();studio.clearMotion();
+  if(next==='statistics'&&document.body.classList.contains('focus-mode'))studio.focus();
+  const statistics=next==='statistics',changedScreen=activeScreen!==next;activeScreen=next;
+  if(!statistics){
+    inputMode=next;const sharing=next==='capture';
+    document.body.classList.toggle('capture-mode',sharing);$('capture-panel').hidden=!sharing;
+    capture.setActive(sharing);
+  }
+  document.body.classList.toggle('statistics-mode',statistics);
+  document.querySelector('.center-stage').hidden=statistics;document.querySelector('.recommendations').hidden=statistics;
+  document.querySelector('.library').hidden=statistics;$('statistics-screen').hidden=!statistics;
+  for(const [screen,id]of [['manual','tab-manual'],['capture','tab-capture'],['statistics','open-statistics']]){
+    const selected=screen===next,node=$(id);node.classList.toggle('selected',selected);node.setAttribute('aria-pressed',String(selected));
+    if(selected)node.setAttribute('aria-current','page');else node.removeAttribute('aria-current');
+  }
+  if(navigate&&location.hash!==`#${next}`)window.history.pushState(null,'',`#${next}`);
+  render();
+  if(changedScreen){window.scrollTo({top:0,behavior:'instant'});if(focus)(statistics?$('statistics-title'):$(next==='capture'?'tab-capture':'tab-manual')).focus({preventScroll:true});}
 }
+window.addEventListener('popstate',()=>switchInput(location.hash.slice(1)||'manual',{navigate:false}));
+$('statistics-back').onclick=()=>switchInput(inputMode);
+$('statistics-undo').onclick=()=>$('undo').click();
+document.querySelectorAll('.brand,.skip-link').forEach(link=>link.addEventListener('click',event=>{if(activeScreen==='statistics'){event.preventDefault();switchInput(inputMode);$('board-grid').querySelector('button')?.focus();}}));
 function message(text, error = false) { lastMessage={text,error};refreshMessage(); }
 function refreshMessage(){if(!lastMessage)return;$('message').textContent=t(typeof lastMessage.text==='function'?lastMessage.text():lastMessage.text);$('message').classList.toggle('error',lastMessage.error);}
 function el(tag, text, className) { const node=document.createElement(tag); if(text!==undefined)node.textContent=text; if(className)node.className=className; return node; }
@@ -349,7 +368,7 @@ function renderRecommendations() {
 }
 function render() {
   if(!state)return;
-  renderLibrary();renderTray();renderBoard();renderRecommendations();renderStatistics();renderTargetStatus();$('undo').disabled=!history.length;
+  renderLibrary();renderTray();renderBoard();renderRecommendations();renderStatistics();renderTargetStatus();$('undo').disabled=!history.length;$('statistics-undo').disabled=!history.length;
   if(document.activeElement!==$('cleared-lines'))$('cleared-lines').value=state.clearedLines??'';
   if(document.activeElement!==$('skill-spawn-remaining'))$('skill-spawn-remaining').value=state.skillSpawnRemaining??'';
   const stage=stageForLines(state.clearedLines);$('current-stage').textContent=stage===null?t('단계 미상'):t`${stage}단계`;
@@ -608,6 +627,7 @@ $('import-blocks').onchange=async event=>{
 };
 document.addEventListener('keydown',event=>{
   if(document.querySelector('dialog[open]')||event.target.matches('input,select,textarea')||event.ctrlKey||event.metaKey)return;
+  if(activeScreen==='statistics'){if(event.key==='Escape')switchInput(inputMode);return;}
   if(event.key==='Escape')setMode('paint');if(event.key.toLowerCase()==='r')transformPlacement();if(event.key.toLowerCase()==='f')transformPlacement(true);
 });
 window.addEventListener('beforeunload',event=>{if(revision!==savedRevision){event.preventDefault();event.returnValue='';}});
@@ -629,6 +649,7 @@ async function boot() {
     const upgradedStrategy=priorOptions.strategyVersion!==3||priorOptions.solverProfile!=='fast'||priorOptions.timeLimit!==850;
     state.options={solverProfile:'fast',rotate:priorOptions.rotate!==false,reflect:priorOptions.reflect!==false,gravity:false,timeLimit:850,strategyVersion:3};
     loaded=true;$('save-status').textContent=t('파일에 저장됨');render();document.querySelector('main').inert=false;$('new-block').disabled=false;
+    switchInput(['manual','capture','statistics'].includes(location.hash.slice(1))?location.hash.slice(1):'manual',{navigate:false,focus:false});
     $('stage-server-warning').hidden=stagePersistenceSupported;
     if(!stagePersistenceSupported){$('save-status').textContent=t('서버 재시작 필요');$('save-status').classList.add('error');if(draft)dirty();}
     if(correctedGravity){dirty();message(()=>(t('줄 제거 후 나머지 칸을 유지하도록 설정을 바로잡았습니다. 이미 어긋난 보드는 화면공유 탭에서 현재 게임 이미지를 붙여넣어 다시 맞춰 주세요.')));}

@@ -253,6 +253,7 @@ try {
   assert.equal(await page.locator('#statistics-rows tr[data-block-id="skill-b0"] td[data-source="reroll"] strong').innerText(),'50.0%');
   // Manual cumulative totals, source sorting, filtering denominators and reload.
   const editStats=async(id,normal,reroll)=>{
+    await page.locator('#open-statistics').click();
     const row=page.locator(`#statistics-rows tr[data-block-id="${id}"]`);
     await row.locator('input[data-source="normal"]').fill(String(normal));
     await row.locator('input[data-source="normal"]').press('Tab');
@@ -278,7 +279,7 @@ try {
   }
   await page.locator('#statistics-search').fill('없는이름');assert.equal(await page.locator('#statistics-no-match').isVisible(),true);
   await page.locator('#statistics-search').fill('');
-  await page.locator('#undo').click();assert.equal(await page.locator('#statistics-total').textContent(),'일반 13회 · 바꾸기 3회 · 합계 16회');
+  await page.locator('#statistics-undo').click();assert.equal(await page.locator('#statistics-total').textContent(),'일반 13회 · 바꾸기 3회 · 합계 16회');
   await editStats('skill-b1',2,20);
   await page.getByText('파일에 저장됨',{exact:true}).waitFor();await page.reload();await page.getByText('파일에 저장됨',{exact:true}).waitFor();
   assert.equal(await page.locator('#statistics-total').textContent(),'일반 13회 · 바꾸기 22회 · 합계 35회');
@@ -294,9 +295,10 @@ try {
   await page.getByText('파일에 저장됨',{exact:true}).waitFor();const afterReset=await store.read();
   assert.deepEqual(afterReset.statistics,{entries:[]});
   for(const key of ['blocks','board','slots','skills','options'])assert.deepEqual(afterReset[key],beforeReset[key]);
-  await page.locator('#undo').click();assert.equal(await page.locator('#statistics-total').textContent(),'일반 13회 · 바꾸기 22회 · 합계 35회');
+  await page.locator('#statistics-undo').click();assert.equal(await page.locator('#statistics-total').textContent(),'일반 13회 · 바꾸기 22회 · 합계 35회');
   await page.locator('#statistics-reset').click();await page.getByText('파일에 저장됨',{exact:true}).waitFor();await page.reload();await page.getByText('파일에 저장됨',{exact:true}).waitFor();
   assert.equal(await page.locator('#statistics-total').textContent(),'일반 0회 · 바꾸기 0회 · 합계 0회');
+  await page.locator('#tab-manual').click();
   // Ambiguous names leave the pending reroll and its counters untouched.
   await seedSkills([0,0],3,[big,[[0,0]],[[0,0]]],{dot:0,reroll:2});
   const ambiguous=await store.read();ambiguous.blocks[2].name='ㅅ';await store.write(ambiguous);
@@ -307,8 +309,8 @@ try {
   assert.equal(await page.locator('#skill-reroll').inputValue(),'2');
   assert.equal(await page.locator('#statistics-total').textContent(),'일반 3회 · 바꾸기 0회 · 합계 3회');
   await page.setViewportSize({width:1440,height:1080});
-  await page.locator('#statistics-panel').screenshot({path:'test-results/statistics.png'});
-  await page.locator('#statistics-reset').click();const heldMoves=await page.locator('#moves').textContent();
+  await page.locator('#open-statistics').click();await page.locator('#statistics-panel').screenshot({path:'test-results/statistics.png'});
+  await page.locator('#statistics-reset').click();const heldMoves=await page.locator('#moves').textContent();await page.locator('#statistics-back').click();
   await page.locator('#solve').click();await page.locator('#reroll-panel').waitFor();
   assert.equal(await page.locator('#statistics-total').textContent(),'일반 0회 · 바꾸기 0회 · 합계 0회');
   assert.equal(await page.locator('#moves').textContent(),heldMoves);

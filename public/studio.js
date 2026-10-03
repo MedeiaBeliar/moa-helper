@@ -19,7 +19,7 @@ export class StudioUI {
     $('plan-scrubber').oninput=()=>{this.stopPlayback();actions.preview(+$('plan-scrubber').value-1);};
     $('open-command').onclick=()=>this.command();$('close-command').onclick=()=>$('command-dialog').close();
     $('command-dialog').addEventListener('click',event=>{if(event.target===$('command-dialog')){const r=event.target.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)event.target.close();}});
-    const commands=[[t('블록 이름 입력'),'/',()=>this.search()],[t('현재 공유 화면 인식'),'',()=>{if(!$('capture-read').disabled){actions.capture();$('capture-read').click();}}],[t('배치 추천 찾기'),'',()=>$('solve').click()],[t('보드 집중 모드'),'',()=>this.focus()],[t('출현 기록 보기'),'',()=>this.archive()],[t('마지막 동작 되돌리기'),'',()=>$('undo').click()]];
+    const commands=[[t('블록 이름 입력'),'/',()=>this.search()],[t('현재 공유 화면 인식'),'',()=>{if(!$('capture-read').disabled){actions.capture();$('capture-read').click();}}],[t('배치 추천 찾기'),'',()=>{actions.resume();$('solve').click();}],[t('보드 집중 모드'),'',()=>{actions.resume();this.focus();}],[t('출현 기록 보기'),'',()=>this.archive()],[t('마지막 동작 되돌리기'),'',()=>$('undo').click()]];
     this.commands=commands;
     for(const [label,key,run]of commands){const button=document.createElement('button');button.textContent=label;const hint=document.createElement('kbd');hint.textContent=key||'↵';button.append(hint);button.onclick=()=>{$('command-dialog').close();run();};$('command-actions').append(button);}
     document.addEventListener('keydown',event=>{
@@ -120,7 +120,7 @@ export class StudioUI {
     this.fit();const after=board.getBoundingClientRect();this.animate(board,[{transform:`translateX(${before.x-after.x}px) scaleX(${before.width/after.width})`,transformOrigin:'left top',opacity:.6},{transform:'none',opacity:1}],{duration:450});
   }
   search(){if(document.body.classList.contains('focus-mode'))this.focus();this.actions.manual();$('search-blocks').focus();$('search-blocks').select();}
-  archive(){$('statistics-panel').open=true;document.querySelector('.draw-statistics').scrollIntoView({behavior:this.reduced.matches?'instant':'smooth',block:'start'});}
+  archive(){this.actions.statistics();}
   command(){if(document.querySelector('dialog[open]'))return;$('command-dialog').showModal();$('command-actions').firstElementChild.focus();}
   statistics(rows,totals){
     const key=JSON.stringify([getLanguage(),totals.total,rows.map(r=>[r.blockId,r.name,r.total])]);if(key===this.chartKey)return;this.chartKey=key;

@@ -42,7 +42,7 @@ Select a move, play the sequence, or scrub through individual steps to inspect a
 | Screen input | Reads a shared screen or pasted image only when recognition is requested. Video preview uses native browser playback. |
 | Skills | Places dot skills between ordinary pieces and asks for actual reroll results. A completed plan must leave fewer than seven held skills. |
 | Target scores | Searches a list of 16 targets from 100,000 upward. Falls back to a scoring plan when a safe target path is unavailable. |
-| Draw statistics | Tracks normal draws and rerolls across all stages and by stage. Supports direct count editing, filtering, and sorting. |
+| Draw statistics | A separate screen tracks normal draws and rerolls across all stages and by stage, with direct count editing, filtering, sorting, and undo. |
 | Block library | Includes a dot editor, import/export, and rotation/reflection duplicate detection. Duplicate records merge into the most-observed identity. |
 | Keyboard input | Accepts Hangul, English two-set keyboard input, and composed syllables: `ㄿㄱ` becomes `ㄹㅍㄱ`; `긔` becomes `ㄱㅡㅣ`. |
 | Always-on-top view | Shows the plan and completion control in a separate supported browser window. |

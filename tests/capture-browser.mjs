@@ -121,6 +121,13 @@ try{
   await page.locator('#capture-start').click();await page.waitForFunction(()=>document.querySelector('#capture-status').textContent.includes('실시간 미리보기'));
   assert.equal(await page.locator('#capture-video').isVisible(),true);
   assert.equal(await page.locator('#complete-plan').isVisible(),false);
+  await page.locator('#open-statistics').click();
+  assert.equal(await page.locator('#statistics-screen').isVisible(),true);
+  assert.equal(await page.locator('#capture-panel').isVisible(),false);
+  assert.equal(await page.evaluate(()=>window.testStream.getTracks().every(track=>track.readyState==='live')),true);
+  await page.locator('#statistics-back').click();
+  assert.equal(await page.locator('#capture-video').isVisible(),true);
+  assert.equal(await page.locator('#tab-capture').getAttribute('aria-current'),'page');
   const initialTime=await page.locator('#capture-video').evaluate(video=>video.currentTime);
   await pause();assert.deepEqual(await calls(),{copy:0,read:0});
   assert.ok(await page.locator('#capture-video').evaluate((video,time)=>video.currentTime>time,initialTime));
@@ -129,6 +136,9 @@ try{
   await page.waitForFunction(()=>!document.querySelector('#complete-plan').hidden&&!document.querySelector('#complete-plan').disabled);
   assert.deepEqual(await calls(),{copy:1,read:1});
   const held=await page.locator('#moves').textContent();await pause();
+  const heldOverlay=await page.locator('#capture-canvas').evaluate(canvas=>canvas.toDataURL());
+  await page.locator('#open-statistics').click();await page.locator('#statistics-back').click();
+  assert.equal(await page.locator('#capture-canvas').evaluate(canvas=>canvas.toDataURL()),heldOverlay);
   assert.deepEqual(await calls(),{copy:1,read:1});assert.equal(await page.locator('#moves').textContent(),held);
   assert.equal(await page.locator('#statistics-total').textContent(),'일반 0회 · 바꾸기 0회 · 합계 0회');
   for(const width of [1440,768,375,320]){
