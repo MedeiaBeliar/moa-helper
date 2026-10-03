@@ -39,7 +39,7 @@ function stepColor(index) { return result?.moves[index]?.kind==='dot'?'skill':`s
 function colorStep(node,index) { node.style.setProperty('--step-color',`var(--color-${stepColor(index)})`);return node; }
 const capture=new ScreenCapture({
   getState:()=>state,
-  getPlan:()=>({result,preview,stepColor,targetPaused}),
+  getPlan:()=>({result,preview,stepColor,targetPaused,busy}),
   onReset:()=>{targetPaused=false;invalidate();if(loaded)render();},
   onRead:(observation,source)=>{
     const next=stateFromCapture(state,observation,uid,source);

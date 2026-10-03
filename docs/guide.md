@@ -49,7 +49,11 @@ For manual placement, choose **Place manually** on a selected piece and click it
 
 Select **Screen capture**, then **Start sharing**, and choose the game window. You can also paste an image with Ctrl+V in this mode. Press **Recognize · read one frame** to read the board and three pieces and request a plan. Pasting alone does not analyze the image.
 
-The browser plays the live video. The helper does not periodically copy or analyze frames, and it keeps the existing recommendation until recognition is requested again. Recognized shapes are matched against saved blocks, including rotations and reflections. **Try example image** loads a reference image and excludes it from statistics.
+The browser plays the live video. Recognition is manual by default. Enable **Auto recognition · 0.5s** to read a frame every half second while sharing. This preference is remembered. Recognition pauses while regions are being adjusted, a dialog is open, or the statistics screen is visible. Browser scheduling can slow the interval in background tabs.
+
+Automatic reads preserve the current plan while you place the pieces. Press **Complete · apply plan** after following the plan in the game. The helper waits for the confirmed board before accepting the next pieces. Repeated frames do not restart the search or add draw records; statistics are recorded on completion. Use the recognition button to correct a reading or resume from a different board. Reroll results still need explicit confirmation. Pasted images and the example image are read only by the button.
+
+Recognized shapes are matched against saved blocks, including rotations and reflections. **Try example image** loads a reference image and excludes it from statistics.
 
 If recognition regions are wrong, open **Regions and recognition**. Select the board or a piece region, then drag over the preview. The board region should contain the grid without its outer border; each piece region should contain the small shape inside its card. Use **Find regions automatically** after moving or resizing the game. Press recognition again after changing regions or blue-block sensitivity.
 

@@ -39,7 +39,7 @@ Select a move, play the sequence, or scrub through individual steps to inspect a
 | --- | --- |
 | Language | Switches between Korean and English and remembers the choice. Saved block names remain unchanged. |
 | Placement search | Prioritizes placing all three pieces, then compares simultaneous line-clear scores and space for future pieces. |
-| Screen input | Reads a shared screen or pasted image only when recognition is requested. Video preview uses native browser playback. |
+| Screen input | Reads a shared screen manually or every 0.5 seconds with optional auto recognition. Pasted images use the recognition button. Video preview uses native browser playback. |
 | Skills | Places dot skills between ordinary pieces and asks for actual reroll results. A completed plan must leave fewer than seven held skills. |
 | Target scores | Combines 16 automatic targets from 100,000 upward with saved custom targets. Custom targets also work on their own. Falls back to a scoring plan when a safe target path is unavailable. |
 | Draw statistics | A separate screen tracks normal draws and rerolls across all stages and by stage, with direct count editing, filtering, sorting, and undo. |

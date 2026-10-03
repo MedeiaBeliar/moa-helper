@@ -107,7 +107,7 @@ try{
   await page.evaluate(async()=>{
     const {ScreenCapture}=await import('/capture.js'),copy=ScreenCapture.prototype.copyFrame,read=ScreenCapture.prototype.readObservation;
     window.captureCalls={copy:0,read:0};
-    ScreenCapture.prototype.copyFrame=function(source){if(source instanceof HTMLVideoElement)window.captureCalls.copy++;return copy.call(this,source);};
+    ScreenCapture.prototype.copyFrame=function(source,...args){if(source instanceof HTMLVideoElement)window.captureCalls.copy++;return copy.call(this,source,...args);};
     ScreenCapture.prototype.readObservation=function(){window.captureCalls.read++;return read.call(this);};
     Object.defineProperty(navigator.mediaDevices,'getDisplayMedia',{configurable:true,value:async()=>{
       const image=new Image();image.src='/sample-game.png';await image.decode();const canvas=document.createElement('canvas');canvas.width=image.width;canvas.height=image.height;

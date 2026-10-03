@@ -39,7 +39,9 @@ Future-piece evaluation uses smoothed overall normal-draw observations. Stage-sp
 
 ## Capture and presentation
 
-[`capture.js`](../public/capture.js) uses a native video element for playback and a transparent canvas for overlays. The recognition button copies one frame for [`vision.js`](../public/vision.js). Adjusting sensitivity or calibration does not trigger another recognition pass. [`capture-state.js`](../public/capture-state.js) reconciles observations with the existing slots.
+[`capture.js`](../public/capture.js) uses a native video element for playback and a transparent canvas for overlays. The recognition button copies one frame for [`vision.js`](../public/vision.js). An optional 500 ms timer reads live frames without overlapping passes. It pauses during calibration, dialogs, and the statistics view, and stops when sharing ends. Pasted images are not polled. Adjusting sensitivity or calibration does not itself trigger recognition. [`capture-state.js`](../public/capture-state.js) reconciles observations with the existing slots.
+
+Automatic recognition holds the accepted plan until completion. The next observation must match the committed board before it can replace the hand; duplicate observations do not write state or restart the solver. Rerolls and target stopping points retain their explicit confirmation steps. The manual button can override the automatic wait to correct an observation. The automatic-recognition preference is stored in browser local storage, separately from game state.
 
 Board detection joins matching background extents across interruptions from placed blocks and ability glows, then fits the grid. Cell classification checks the tile corners so an ability symbol over an empty cell does not count as a block. If saved regions fail recognition after the game panel moves, the same captured frame is checked for a new board and three readable cards. Calibration changes only when that replacement passes the recognition checks.
 
