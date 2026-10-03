@@ -41,7 +41,9 @@ Future-piece evaluation uses smoothed overall normal-draw observations. Stage-sp
 
 [`capture.js`](../public/capture.js) uses a native video element for playback and a transparent canvas for overlays. The recognition button copies one frame for [`vision.js`](../public/vision.js). Adjusting sensitivity or calibration does not trigger another recognition pass. [`capture-state.js`](../public/capture-state.js) reconciles observations with the existing slots.
 
-Miniature tile spacing is initialized from the game board's scale and refined from distances between detected tiles. A blue tile's saturated interior can be narrower than its full cell; using that interior as the spacing would insert false gaps in connected shapes. Genuine gaps remain empty. Calibration labels appear only while the region controls are open or a region is being dragged.
+Board detection joins matching background extents across interruptions from placed blocks and ability glows, then fits the grid. Cell classification checks the tile corners so an ability symbol over an empty cell does not count as a block. If saved regions fail recognition after the game panel moves, the same captured frame is checked for a new board and three readable cards. Calibration changes only when that replacement passes the recognition checks.
+
+Miniature tile spacing is initialized from the game board's scale and refined from distances between detected tiles. A blue tile's saturated interior can be narrower than its full cell; using that interior as the spacing would insert false gaps in connected shapes. Resampling can also join neighboring tile interiors, which are split at the expected grid spacing. Genuine gaps remain empty. Calibration labels appear only while the region controls are open or a region is being dragged.
 
 [`studio.js`](../public/studio.js) manages selection motion, plan playback, focus mode, and keyboard navigation. Animations and timers run during interactions. Hidden documents and reduced-motion settings cancel decorative effects. This module does not add a capture-processing loop.
 

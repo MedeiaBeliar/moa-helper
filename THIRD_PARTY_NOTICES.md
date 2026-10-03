@@ -10,6 +10,8 @@ MapleStory trademarks, logos, characters, game screens, and related works belong
 
 `tests/fixtures/blue-bar-pixels.json` contains a small pixel sample from a reported game screenshot for the blue-block recognition regression. The same asset notice applies to this sample.
 
+`tests/fixtures/ability-board-pixels.json` contains compressed puzzle-board and piece-card pixels for the ability-glow and moved-panel regressions. Player characters, names, and chat are excluded. The same game-asset notice applies.
+
 This is an unofficial Hangul Moa Moa assistant for personal use and learning. It is not developed, approved, endorsed, or sponsored by Nexon and is not affiliated with MapleStory services.
 
 ## UI reference

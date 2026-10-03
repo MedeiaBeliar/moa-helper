@@ -1,5 +1,6 @@
 // Korean source messages are stable keys. Keep {n} placeholders intact.
 export default {
+  "화면 인식 중 오류가 발생했습니다: {0}": "Screen recognition failed: {0}",
   "수동 목표": "Custom targets",
   "목표 점수": "Target score",
   "추가": "Add",

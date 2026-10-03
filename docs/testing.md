@@ -22,6 +22,8 @@ The keyboard suite checks automatic search focus, Enter behavior, quick input af
 
 Statistics navigation checks preserve the current plan, filters, and live video across view changes and browser history. Recognition regressions include the reported blue-bar pixels, three- and five-cell bars at several scales, and genuinely disconnected shapes.
 
+The ability-board fixture reproduces a failed recognition where placed tiles and ability glows interrupt the clear background. Checks assert all 12 occupied cells and the exact 3-, 6-, and 8-cell piece shapes at multiple scales. A live-video fixture moves the game panel without resizing the shared window and verifies recovery from one captured frame, plus recovery after a pixel-read error.
+
 Localization checks cover Korean/English switching, reload and cross-tab persistence, dialog validation, keyboard commands, and English layouts. They verify that language changes preserve plans and observations and do not trigger another capture or recognition pass. Unit checks verify translated placeholders and literal player-defined names.
 
 Set `PLAYWRIGHT_MODULE_PATH` to reuse an installed Playwright module, or `BROWSER_EXECUTABLE` to use a separate Chromium executable. By default, tests use the Playwright dependency installed by `npm ci` and its browser.

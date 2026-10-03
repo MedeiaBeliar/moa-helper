@@ -1,12 +1,25 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
+import {inflateSync} from 'node:zlib';
 import {stateFromCapture,rerollFromCapture,findBlock} from '../public/capture-state.js';
 import {initialState,validateState} from '../storage.mjs';
 import {recordNormalDraws,statisticsRows} from '../public/statistics.js';
 import {applyPartialPlan,applyTargetPlan,completePlan} from '../public/plan.js';
 import {solve} from '../public/solver.js';
-import {readPiece,recognize} from '../public/vision.js';
+import {readPiece,recognize,detectBoards,defaultSlots} from '../public/vision.js';
+
+test('ability glows may interrupt every clear strip without hiding the board or becoming occupied cells',()=>{
+  const fixture=JSON.parse(readFileSync(new URL('./fixtures/ability-board-pixels.json',import.meta.url)));
+  const image={width:fixture.width,height:fixture.height,data:inflateSync(Buffer.from(fixture.rgbaDeflate,'base64'))};
+  const boards=detectBoards(image);assert.equal(boards.length,1);
+  const result=recognize(image,{board:boards[0],slots:defaultSlots(boards[0])});
+  assert.equal(result.safe,true);assert.equal(result.uncertain,0);
+  assert.deepEqual(result.board,fixture.board);assert.deepEqual(result.pieces.map(p=>p.cells.length),fixture.areas);
+  assert.deepEqual(result.pieces.map(p=>p.cells),fixture.pieces);
+  for(const [x,y]of [[8,0],[7,8],[8,14]])assert.equal(result.board[y]&(1<<x),0,'ability is not an occupied tile');
+  for(const [x,y]of [[1,0],[3,0],[5,7]])assert.notEqual(result.board[y]&(1<<x),0,'blue tiles remain occupied');
+});
 
 test('captured random shapes, duplicate slots and used slots preserve manual inventory and library',()=>{
   const state=initialState();state.cols=3;state.rows=2;state.board=[0,0];state.skills={dot:2,reroll:3};

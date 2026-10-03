@@ -164,6 +164,54 @@ try{
   await page.locator('#tab-capture').click();
   await page.evaluate(()=>Object.defineProperty(navigator.mediaDevices,'getDisplayMedia',{configurable:true,value:async()=>{throw new DOMException('cancel','NotAllowedError');}}));
   await page.locator('#capture-start').click();await page.waitForFunction(()=>document.querySelector('#capture-status').textContent.includes('취소됐습니다'));
+  // The reported board has no uninterrupted cyan strip tall enough for the
+  // former detector. Keep only puzzle pixels, then simulate a moved game panel.
+  const regression=JSON.parse(await readFile(new URL('./fixtures/ability-board-pixels.json',import.meta.url),'utf8'));
+  const scaled=await page.evaluate(async fixture=>{
+    const bytes=Uint8Array.from(atob(fixture.rgbaDeflate),c=>c.charCodeAt(0));
+    const rgba=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer();
+    const source=document.createElement('canvas');source.width=fixture.width;source.height=fixture.height;
+    source.getContext('2d').putImageData(new ImageData(new Uint8ClampedArray(rgba),fixture.width,fixture.height),0,0);
+    const {detectBoards,defaultSlots,recognize}=await import('/vision.js'),reports=[];
+    for(const scale of [.7,1,1.5]){
+      const frame=document.createElement('canvas');frame.width=Math.round(source.width*scale);frame.height=Math.round(source.height*scale);
+      const ctx=frame.getContext('2d');ctx.drawImage(source,0,0,frame.width,frame.height);
+      const image=ctx.getImageData(0,0,frame.width,frame.height),boards=detectBoards(image);
+      reports.push({scale,results:boards.map(board=>recognize(image,{board,slots:defaultSlots(board)}))});
+    }
+    Object.defineProperty(navigator.mediaDevices,'getDisplayMedia',{configurable:true,value:async()=>{
+      const canvas=document.createElement('canvas');canvas.width=1368;canvas.height=800;const ctx=canvas.getContext('2d');
+      window.moveReportedGame=(x,y)=>{ctx.fillStyle='#303030';ctx.fillRect(0,0,canvas.width,canvas.height);ctx.drawImage(source,x,y);window.reportedStream?.getVideoTracks()[0].requestFrame();};
+      window.moveReportedGame(250,100);window.reportedStream=canvas.captureStream(0);return window.reportedStream;
+    }});
+    return reports;
+  },regression);
+  for(const {scale,results}of scaled){
+    assert.equal(results.length,1,`one board at scale ${scale}`);assert.equal(results[0].safe,true,JSON.stringify({scale,result:results[0]}));
+    assert.deepEqual(results[0].board,regression.board,`board at scale ${scale}`);
+    assert.deepEqual(results[0].pieces.map(p=>p.cells.length),regression.areas,`pieces at scale ${scale}`);
+    assert.deepEqual(results[0].pieces.map(p=>p.cells),regression.pieces,`piece geometry at scale ${scale}`);
+  }
+  await page.locator('#capture-start').click();await page.waitForFunction(()=>document.querySelector('#capture-status').textContent.includes('실시간 미리보기'));
+  await page.locator('#capture-read').click();await page.locator('#complete-plan').waitFor();await page.getByText('파일에 저장됨',{exact:true}).waitFor();
+  assert.deepEqual((await store.read()).board,regression.board);
+  const beforeMoveCalls=await calls(),oldRegions=await page.evaluate(()=>JSON.parse(localStorage.getItem('moa-capture-regions-v1')));
+  await page.evaluate(()=>new Promise(resolve=>{document.querySelector('#capture-video').requestVideoFrameCallback(resolve);window.moveReportedGame(831,204);}));
+  assert.deepEqual(await calls(),beforeMoveCalls,'moving the game does not trigger recognition');
+  await page.locator('#capture-read').click();await page.locator('#complete-plan').waitFor();await page.getByText('파일에 저장됨',{exact:true}).waitFor();
+  const recovered=await store.read(),newRegions=await page.evaluate(()=>JSON.parse(localStorage.getItem('moa-capture-regions-v1')));
+  assert.deepEqual(recovered.board,regression.board);assert.deepEqual(recovered.slots.map(s=>s.cells.length),regression.areas);
+  assert.ok(newRegions.regions.board.x-oldRegions.regions.board.x>500,'recovered the moved board');
+  assert.deepEqual(await calls(),{copy:beforeMoveCalls.copy+1,read:beforeMoveCalls.read+1},'one captured frame and one recognition request');
+  await page.locator('#capture-panel').screenshot({path:'test-results/capture-recovered.png'});
+  // A low-level pixel read failure must be visible and leave saved state intact.
+  await page.evaluate(async()=>{const {ScreenCapture}=await import('/capture.js');window.savedReadObservation=ScreenCapture.prototype.readObservation;ScreenCapture.prototype.readObservation=function(){throw new Error('Pixel read failed');};});
+  await page.locator('#capture-read').click();assert.match(await page.locator('#capture-status').textContent(),/Pixel read failed/);
+  assert.deepEqual(await store.read(),recovered);
+  await page.evaluate(async()=>{const {ScreenCapture}=await import('/capture.js');ScreenCapture.prototype.readObservation=window.savedReadObservation;});
+  await page.locator('#capture-read').click();await page.locator('#complete-plan').waitFor();
+  await page.locator('#capture-stop').click();
   assert.equal(await page.locator('#capture-start').isEnabled(),true);assert.deepEqual(errors,[]);
+  console.log('PASS reported ability board: exact 12 cells and 3/6/8 pieces, scaled pixels, moved-panel recovery from one frame and visible error recovery');
   console.log('PASS capture: supplied images/scaling, 21-shape naming, shared overlay, click-only snapshots, uninterrupted native preview, deferred statistics, media lifecycle/cancel, mode switch, responsive layout; no server');
 }finally{await browser?.close();assert.ok(path.resolve(dir).startsWith(path.resolve(os.tmpdir())+path.sep));await rm(dir,{recursive:true,force:true});}

@@ -139,7 +139,7 @@ Ability shortcuts edit board markers, leaving held inventory and occupied cells 
 
 ## Troubleshooting
 
-For shifted recognition, redefine the regions and press recognition again. If the helper and game disagree, re-read the current screen or edit the board; separately check score, cleared lines, and skills.
+If the game panel moves inside a shared window, press recognition again. When the old regions fail, the helper attempts to find the board and all three cards in that same frame. If recognition still reports uncertain cells, redefine the regions and retry. If the helper and game disagree, re-read the current screen or edit the board; separately check score, cleared lines, and skills.
 
 If the port is occupied, check for an existing server. In PowerShell, set `$env:PORT=3211`, then run `npm start`. On macOS/Linux, use `PORT=3211 npm start`.
 

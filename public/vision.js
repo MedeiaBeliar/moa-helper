@@ -38,7 +38,17 @@ export function detectBoards(image, cols=10, rows=16, debug=false) {
       else tracks.push({x,y,w,h:stride*2,last:y,samples:1});
     }
   }
-  const raw=tracks.filter(t=>t.h>t.w*.65 && t.w>90).sort((a,b)=>b.w*b.h-a.w*a.h);
+  // Blocks and ability glows interrupt the background, even on a sparse board.
+  // Join matching horizontal extents across those interruptions before fitting
+  // the grid. A single uninterrupted cyan rectangle is not required.
+  const groups=[];
+  for(const track of tracks){
+    const group=groups.find(t=>track.y-(t.y+t.h)<=t.w*.65&&track.y+track.h-t.y<=t.w*(rows/cols+.15)
+      &&Math.abs(t.x-track.x)<stride*8&&Math.abs(t.w-track.w)<stride*18);
+    if(group){group.h=Math.max(group.y+group.h,track.y+track.h)-group.y;group.samples+=track.samples;}
+    else groups.push({...track});
+  }
+  const raw=groups.filter(t=>t.h>t.w*.65 && t.w>90).sort((a,b)=>b.w*b.h-a.w*a.h);
   const result=[];
   if(debug) return tracks.sort((a,b)=>b.h-a.h).slice(0,12);
   for(const t of raw) {
@@ -90,6 +100,8 @@ export function detectBoards(image, cols=10, rows=16, debug=false) {
     }
     const rect={x:Math.round(x),y:Math.round(bestY),w:Math.round(pitch*cols),h:Math.round(pitch*rows)};
     if(!validRect(rect,image) || fit.score<3) continue;
+    const evidence=readBoard(image,rect,cols,rows);
+    if(evidence.confidence<.85||evidence.uncertain>cols)continue;
     if(result.some(r=>Math.abs(r.x-rect.x)<pitch && Math.abs(r.y-rect.y)<pitch)) continue;
     result.push(rect);
   }
@@ -114,9 +126,16 @@ export function readBoard(image,rect,cols=10,rows=16,sensitivity=1) {
       const isColored = (h<167 || h>223) && s>.22 && v>.35;
       const isBlue = h>=195 && h<=240 && blueExcess>39/sensitivity && mean[2]>237/sensitivity && mean[1]>182/sensitivity;
       const highlight = samples.some(p=>p[0]>140 && p[1]>215 && p[2]>235) && blueExcess>28/sensitivity;
-      const occupied=isColored||isBlue||highlight;
+      // Ability symbols glow in the center but leave the background around
+      // them. Real tiles fill their corners, including when a symbol overlaps.
+      const corners=[[.2,.2],[.8,.2],[.2,.8],[.8,.8]].map(([dx,dy])=>rgb(image,rect.x+(x+dx)*cw,rect.y+(y+dy)*ch));
+      const tileCorners=corners.filter(p=>{
+        const [h,s,v]=hsv(...p);
+        return s>.22&&v>.35&&(h<167||h>240||h>=195&&p[2]>237/sensitivity&&p[2]-p[1]>39/sensitivity);
+      }).length;
+      const occupied=(isColored||isBlue||highlight)&&tileCorners>=3;
       if(occupied) row|=1<<x;
-      const emptyLike=cyan(...mean);
+      const emptyLike=cyan(...mean)||corners.filter(p=>cyan(...p)).length>=2;
       confidences.push(occupied ? (isColored || isBlue ? .94 : .8) : emptyLike ? .96 : .45);
       colors.push(mean.map(Math.round));
     }
@@ -137,7 +156,7 @@ export function readPiece(image,rect,{pitch:expectedPitch}={}) {
     if(s>.36 && v>.82 && (hue<165||hue>205)) mask[y*w+x]=1;
   }
   if(teal/(w*h)>.65 && white/(w*h)<.15) return {cells:[],status:'used',confidence:.96};
-  const seen=new Uint8Array(w*h), components=[];
+  const seen=new Uint8Array(w*h);let components=[];
   for(let at=0;at<mask.length;at++) {
     if(!mask[at]||seen[at]) continue;
     const queue=[at];seen[at]=1;let minX=w,maxX=0,minY=h,maxY=0;
@@ -150,6 +169,24 @@ export function readPiece(image,rect,{pitch:expectedPitch}={}) {
     }
     if(queue.length>=3) components.push({x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1,area:queue.length});
   }
+  const scaled=Number.isFinite(expectedPitch)&&expectedPitch>=3;
+  if(scaled){
+    // Downsampling can bridge a one-pixel tile border. Split a joined component
+    // on the known miniature pitch, retaining only bins with colored pixels.
+    components=components.flatMap(c=>{
+      const cols=Math.max(1,Math.round(c.w/expectedPitch)),rows=Math.max(1,Math.round(c.h/expectedPitch));
+      if(cols===1&&rows===1)return [c];
+      const parts=[];
+      for(let row=0;row<rows;row++)for(let col=0;col<cols;col++){
+        const left=c.x+Math.round(col*c.w/cols),right=c.x+Math.round((col+1)*c.w/cols);
+        const top=c.y+Math.round(row*c.h/rows),bottom=c.y+Math.round((row+1)*c.h/rows);
+        let minX=right,minY=bottom,maxX=left,maxY=top,area=0;
+        for(let y=top;y<bottom;y++)for(let x=left;x<right;x++)if(mask[y*w+x]){minX=Math.min(minX,x);minY=Math.min(minY,y);maxX=Math.max(maxX,x);maxY=Math.max(maxY,y);area++;}
+        if(area>=3&&area>=(right-left)*(bottom-top)*.3)parts.push({x:minX,y:minY,w:maxX-minX+1,h:maxY-minY+1,area});
+      }
+      return parts;
+    });
+  }
   if(!components.length) return {cells:[],status:white/(w*h)>.6?'empty':'unknown',confidence:white/(w*h)>.6?.85:0};
   const tiles=components.filter(c=>c.w>=2&&c.h>=2&&c.w/c.h>=.6&&c.w/c.h<=1.6&&c.w<w*.95&&c.h<h*.95);
   if(!tiles.length) return {cells:[],status:'unknown',confidence:0,reason:'블록 경계가 흐립니다. 조각 영역을 조정하거나 직접 수정하세요.'};
@@ -160,7 +197,6 @@ export function readPiece(image,rect,{pitch:expectedPitch}={}) {
   // not the grid pitch. Use the board's scale, then refine from tile distances.
   // Without that scale, only infer adjacency when the nearest gap is plausible;
   // truly disconnected shapes must retain their empty cells.
-  const scaled=Number.isFinite(expectedPitch)&&expectedPitch>=3;
   let pitch=scaled?expectedPitch:size+1;
   const gaps=[];
   for(const a of actual) for(const b of actual) {

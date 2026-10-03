@@ -122,15 +122,22 @@ export class ScreenCapture {
       this.resetPlan();this.copyFrame(image);this.draw();this.status(()=>(t('이미지가 준비됐습니다. 인식 버튼을 눌러 한 번 읽으세요.')));
     }catch{if(current())this.status(()=>(error),true);}
   }
-  locate(image){
-    const state=this.callbacks.getState();this.boards=detectBoards(image,state.cols,state.rows);
+  locate(image,{requireSafe=false}={}){
+    const state=this.callbacks.getState(),boards=detectBoards(image,state.cols,state.rows);
+    // Background UI panels can have similar colors. Prefer a candidate whose
+    // board and all three piece cards agree before replacing calibration.
+    const index=boards.findIndex(board=>recognize(image,{board,slots:defaultSlots(board,state.cols)},
+      {cols:state.cols,rows:state.rows,sensitivity:this.sensitivity}).safe);
+    if(requireSafe&&index<0)return false;
+    this.boards=boards;
     $('capture-board-choice').replaceChildren(...this.boards.map((b,i)=>{const o=document.createElement('option');o.value=i;o.textContent=t`보드 ${i+1} · 화면 ${b.x>image.width/2?t('오른쪽'):t('왼쪽')}`;return o;}));
     $('capture-board-label').hidden=this.boards.length<2;
-    if(this.boards.length)this.calibration={board:this.boards[0],slots:defaultSlots(this.boards[0],state.cols)};
+    if(this.boards.length){const selected=Math.max(0,index);this.calibration={board:this.boards[selected],slots:defaultSlots(this.boards[selected],state.cols)};$('capture-board-choice').value=String(selected);}
     else {
       try{const saved=JSON.parse(localStorage.getItem(CACHE));if(saved.width===image.width&&saved.height===image.height&&saved.cols===state.cols&&saved.rows===state.rows&&[saved.regions.board,...saved.regions.slots].every(r=>validRect(r,image)))this.calibration=saved.regions;}catch{}
     }
     if(this.calibration)this.saveCalibration();
+    return !!this.calibration;
   }
   selectBoard(index){
     const board=this.boards[index];if(!board)return;
@@ -146,17 +153,27 @@ export class ScreenCapture {
   readObservation(){
     const state=this.callbacks.getState(),image=this.frame.getContext('2d',{willReadFrequently:true}).getImageData(0,0,this.frame.width,this.frame.height);
     if(this.geometry&&this.geometry!==`${state.cols},${state.rows}`)this.calibration=null;
+    const hadCalibration=!!this.calibration;
     if(!this.calibration)this.locate(image);
     if(!this.calibration)return null;
-    return recognize(image,this.calibration,{cols:state.cols,rows:state.rows,sensitivity:this.sensitivity});
+    const settings={cols:state.cols,rows:state.rows,sensitivity:this.sensitivity};
+    const observation=recognize(image,this.calibration,settings);
+    // The game panel can move inside a shared window without changing its
+    // resolution. Retry this captured frame only; never start a video loop.
+    if(hadCalibration&&!observation.safe&&this.locate(image,{requireSafe:true}))return recognize(image,this.calibration,settings);
+    return observation;
   }
   analyze(){
     if(!this.active||(!this.stream&&!this.hasFrame))return;
     if(this.target||this.drag){this.status(()=>(t('영역 드래그를 마친 뒤 인식을 눌러 주세요.')),true);return;}
     this.observedRerollPlan=this.callbacks.getPlan().result;this.pendingReroll=!!this.observedRerollPlan?.reroll;
     this.latest=null;this.accepted=false;this.resetPlan();$('capture-detection').textContent='';
-    if(this.stream&&!this.copyFrame(this.video)){this.status(()=>(t('영상이 준비될 때까지 기다린 뒤 인식을 눌러 주세요.')),true);this.draw();return;}
-    const observation=this.readObservation();this.latest=observation;
+    let observation;
+    try{
+      if(this.stream&&!this.copyFrame(this.video)){this.status(()=>(t('영상이 준비될 때까지 기다린 뒤 인식을 눌러 주세요.')),true);this.draw();return;}
+      observation=this.readObservation();
+    }catch(error){this.status(()=>t`화면 인식 중 오류가 발생했습니다: ${error.message}`,true);this.draw();return;}
+    this.latest=observation;
     if(!observation){this.status(()=>(t('보드를 찾지 못했습니다. 영역 조정에서 보드와 조각 3개의 영역을 지정하세요.')),true);this.draw();return;}
     if(observation.error||!observation.safe){
       this.status(()=>(observation.error||t`인식 확인 필요 · ${observation.uncertain||0}칸 불확실. 보드와 조각 영역을 조정하거나 아래 보드를 직접 수정하세요.`),true);this.draw();return;
