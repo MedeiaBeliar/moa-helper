@@ -97,6 +97,9 @@ test('hosted handler isolates state, validates origins and bodies, and serves cr
     const response=await request(handler,url);assert.equal(response.status,200,url);assert.ok(response.body.length>50,url);assert.doesNotMatch(response.body,/noindex/);
   }
   assert.equal((await request(handler,'/',{method:'HEAD'})).body,'');assert.equal((await request(handler,'/missing')).status,404);
+  const binary=await request(handler,'/native-engine.wasm');assert.equal(binary.status,200);
+  assert.match(binary.headers['Content-Type'],/^application\/wasm/);
+  assert.match((await request(handler,'/')).headers['Content-Security-Policy'],/'wasm-unsafe-eval'/);
   assert.equal((await request(handler,'/%2e%2e%2fstorage.mjs')).status,404);
   const limited=createHostedHandler({store,catalogue,template,now:()=>100});let response;
   for(let i=0;i<121;i++)response=await request(limited,'/api/statistics',{method:'PUT',headers,body:JSON.stringify(submission)});

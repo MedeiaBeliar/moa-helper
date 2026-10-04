@@ -19,19 +19,19 @@ function replay(input,result){
   assert.equal(result.score,score);assert.equal(result.skillsUsed.dot,dots);assert.ok(dots<=input.skills.dot);
   if(result.complete){assert.equal(used.size,input.pieces.length);assert.ok(input.skills.dot+input.skills.reroll-dots<7);}
 }
-test('one-second incumbents and final recommendations replay legally on the final catalogue',()=>{
+test('native incumbents and final recommendations replay legally on the final catalogue',()=>{
   for(const board of [Array(16).fill(0),[772,287,778,260,640,256,0,0,0,0,0,0,0,0,0,0]]){
     const input={board,cols:10,pieces:[11,19,11].map((index,id)=>({...catalogue[index],id})),catalogue,skills:{dot:0,reroll:0},options:{timeLimit:800,beamWidth:40}};
     let updates=0;const result=solve(input,{onProgress:r=>{replay(input,r);updates++;}});
-    assert.ok(updates);assert.equal(result.complete,true);assert.equal(result.method,'fast');replay(input,result);
+    assert.ok(updates);assert.equal(result.complete,true);assert.equal(result.method,'native');replay(input,result);
   }
 });
-test('one-second solver keeps mandatory skill reserve and real reroll boundary',()=>{
+test('native solver keeps mandatory skill reserve and real reroll boundary',()=>{
   for(const skills of [{dot:1,reroll:6},{dot:0,reroll:7}]){
     const input={board:Array(16).fill(0),cols:10,pieces:Array.from({length:3},(_,id)=>({id,cells:[[0,0]]})),catalogue,skills,options:{timeLimit:200,beamWidth:16}};
     const result=solve(input);replay(input,result);
-    assert.equal(result.complete,false);assert.equal(result.reroll.reason,'capacity');assert.equal(result.moves.length,0);
-    assert.equal(result.skillsUsed.dot,0,'preserve scarce dots by spending a reroll at capacity');
+    if(result.complete){assert.equal(result.reroll,null);assert.ok(result.skillsUsed.dot>0);}
+    else{assert.equal(result.reroll.reason,'capacity');assert.equal(result.moves.length,0);assert.equal(result.skillsUsed.reroll,1);}
   }
 });
 test('fast current-batch mode reserves enough time to recover a pruned third piece',()=>{

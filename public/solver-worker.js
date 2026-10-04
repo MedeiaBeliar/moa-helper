@@ -1,6 +1,6 @@
 import { solve } from './solver.js';
 self.onmessage = ({data}) => {
-  let lastPosted=0;
+  let lastPosted=-Infinity;
   try { self.postMessage({id:data.id, result:solve(data.input,{onProgress:result=>{
     if(performance.now()-lastPosted<150&&!result.complete)return;
     lastPosted=performance.now();self.postMessage({id:data.id,progress:true,result});

@@ -72,7 +72,7 @@ The following results come from the original eight-second and one-second simulat
 | One-second | 500,000 | 1,066 | 1,177 | 478ms | 829ms | 0 |
 | Original eight-second | 60,826 | 93 | 97 | 7,669ms | 7,988ms | 97 |
 
-The one-second version reached the display cap during set 802. The runs have different play lengths, so this is not a comparison at equal set counts. Neither run used the separate fallback policy. The application now exposes only the one-second algorithm.
+The one-second version reached the display cap during set 802. The runs have different play lengths, so this is not a comparison at equal set counts. Neither run used the separate fallback policy. The one-second algorithm was the default at the time of those runs. The imported native25 engine replaced it on October 4, 2026.
 
 ### Conditions
 

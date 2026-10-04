@@ -7,10 +7,10 @@ import {domains,renderApp,renderPage,robots,sitemap,llms} from './pages.mjs';
 
 const publicRoot=fileURLToPath(new URL('../public/',import.meta.url));
 const localOnlyAssets=new Set(['index.html','statistics-share.js','statistics-export.js']);
-const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml','.json':'application/json; charset=utf-8','.woff2':'font/woff2','.txt':'text/plain; charset=utf-8'};
+const types={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml','.json':'application/json; charset=utf-8','.woff2':'font/woff2','.wasm':'application/wasm','.txt':'text/plain; charset=utf-8'};
 export function securityHeaders(hash){return {
   'X-Content-Type-Options':'nosniff','Referrer-Policy':'strict-origin-when-cross-origin',
-  'Content-Security-Policy':`default-src 'self'; script-src 'self'${hash?` 'sha256-${hash}'`:''}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`,
+  'Content-Security-Policy':`default-src 'self'; script-src 'self' 'wasm-unsafe-eval'${hash?` 'sha256-${hash}'`:''}; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; frame-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'`,
   'Permissions-Policy':'camera=(), microphone=(), geolocation=(), display-capture=(self)',
   'Cross-Origin-Resource-Policy':'same-origin'
 };}

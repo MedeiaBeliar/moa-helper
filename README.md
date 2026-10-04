@@ -54,9 +54,9 @@ Recognized pieces are counted only after their placements are committed. Re-read
 
 ## Search budget and measured results
 
-The solver runs in a Web Worker with an **850ms search budget**. A **950ms browser watchdog** recovers the latest available plan. Browser scheduling and system load can delay display beyond that time.
+The standard 10 × 16 board uses the supplied **native25 WebAssembly ensemble engine**, with progressively deeper passes: beam widths 128, 320 and up to the original 640, up to 24 finalists and eight future-hand scenarios. The calculation budget is five seconds. The engine runs in a Web Worker; a 4.9-second watchdog retains the latest validated plan, reserving 100ms for message dispatch and display. Custom board sizes, restricted transformations and unsupported shapes use the existing JavaScript solver.
 
-Six current-policy simulations scored 106,403 to 500,000, averaging 260,550. Five ended in verified death; one reached the cap. Four reached 200,000, so a 200,000-point minimum has not been achieved. The 2,767 recommendations averaged about 258ms with a maximum of 685ms. The runs used observed stage distributions, and four seeds had already been used for tuning. See the [full results, failed experiments and conditions](docs/benchmarks.md).
+Six simulations of the previous JavaScript policy scored 106,403 to 500,000, averaging 260,550. Five ended in verified death; one reached the cap. These are historical results, not measurements of the imported engine. See the [full results, failed experiments and conditions](docs/benchmarks.md). No full-game score is claimed for the new engine.
 
 Future draws are unknown. The search compares candidate boards against the registered next-piece distribution within its time budget, with sampled hands as a fallback. It cannot guarantee a globally optimal plan or an exact target score. Rerolls require actual replacement input and another recommendation.
 

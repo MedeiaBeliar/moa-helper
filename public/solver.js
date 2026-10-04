@@ -1,4 +1,5 @@
 import {solveFast} from './fast.js';
+import {solveNative,supportsNative} from './native-solver.js';
 // Arbitrary polyominoes, no predefined shape catalogue. Coordinates are [x, y].
 export function normalize(cells) {
   if (!Array.isArray(cells) || !cells.length) return [];
@@ -105,6 +106,7 @@ export function findSurvival(input,deadline=performance.now()+1000){
 }
 export function solve(input,callbacks={}) {
   validate(input);skillCounts(input.skills);
+  if(supportsNative(input))return solveNative(input,callbacks);
   return solveFast({...input,options:{...input.options,timeLimit:850}},callbacks);
 }
 // Internal current-batch rescue used only by the one-second solver. This is a

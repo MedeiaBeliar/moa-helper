@@ -10,6 +10,7 @@ import assert from 'node:assert/strict';
 import {atomicJson} from './atomic-json.mjs';
 import {createGame,deal,legalMoves,isDead,playMove,rerollPiece} from './game-model.mjs';
 import {place} from '../public/solver.js';
+import {SOLVER_WATCHDOG_MS} from '../public/native-engine.js';
 import {createEvaluator} from '../public/policy.js';
 import {TARGET_SCORES} from '../public/targets.js';
 import {catalogueFromState,createDrawModel,validateResume,predictionAtStep,recordTargetArrival,benchmarkPreset,benchmarkJobs,benchmarkStopStatus} from './target-benchmark-support.mjs';
@@ -39,7 +40,7 @@ const base=path.join(outputDir,`targets-${runId}`),snapshotPath=`${base}-input.j
 await mkdir(outputDir,{recursive:true});
 const targets=new Set(TARGET_SCORES);
 assert.ok(targets.size>0&&[...targets].every(Number.isSafeInteger),'TARGET_SCORES must contain integer scores.');
-const algorithmFiles=['../public/solver.js','../public/fast.js','../public/move-order.js','../public/search.js','../public/policy.js','../public/statistics.js','../public/targets.js','./game-model.mjs','./target-worker.mjs','./target-benchmark.mjs','./target-benchmark-support.mjs','./target-resource-budget.mjs','./atomic-json.mjs'];
+const algorithmFiles=['../public/native-solver.js','../public/native-engine.js','../public/native-engine.wasm','../public/solver.js','../public/fast.js','../public/move-order.js','../public/search.js','../public/policy.js','../public/statistics.js','../public/targets.js','./game-model.mjs','./target-worker.mjs','./target-benchmark.mjs','./target-benchmark-support.mjs','./target-resource-budget.mjs','./atomic-json.mjs'];
 const hashes={};
 for(const file of algorithmFiles)hashes[file]=createHash('sha256').update(await readFile(new URL(file,import.meta.url))).digest('hex');
 async function captureInput(){
@@ -81,13 +82,13 @@ const conditions=[
   'At seven held skills, icons on cleared rows stay on their original cells without granting a skill or points; no new icon spawns. Spending a skill allows collection on a later clear.',
   'Normal draws, rerolls, icon positions and icon types use independent seeded random streams. Different policies may consume different numbers of draws.',
   'Stage observations use a 30-observation overall prior; missing stages use overall counts. Normal overall counts add one per identity; rerolls use a 30-observation normal-distribution prior.',
-  'The draw model and recommendation evaluator share the stage probability model. Each candidate uses the stage reached after its clears.',
+  'The simulation uses its existing stage probability model. The native engine receives canonical normal counts by stage, overall fallback counts and its own sampling prior.',
   'The exact game probabilities are unpublished. Observed distributions do not guarantee real-game scores.',
   'Icons spawn uniformly over empty cells, with 40% dots and 60% rerolls. Only visible icons are supplied to the solver; future spawns are hidden.',
   preset.stopAtCap?'Automatic targets are enabled in both games. Exact arrivals are recorded after each action; play ends at 500,000 points or verified death.':'Exact target arrivals are recorded after each action. Games continue through targets and the displayed score cap until verified death.',
   preset.stopAtCap?'Cap completion is recorded as cap-reached, separately from death. Stops, errors and timeouts are not deaths.':'500,000 points is a display cap, not a stopping condition. Stops, errors and timeouts are not deaths.',
   'Calculation time is a round trip to a ready worker and excludes queueing or rest. Parallel timing can differ from isolated timing.',
-  preset.maxSpeed?'Two simultaneous calculations, normal process priority, no artificial rest or load throttling. Each recommendation retains the one-second limit.':'Below-normal priority with rest after each calculation. CPU load above 60% reduces concurrency to one; load above 85% or insufficient memory suspends new calculations.',
+  preset.maxSpeed?'Two simultaneous calculations, normal process priority, no artificial rest or load throttling. Each recommendation has a five-second limit (4.9-second worker watchdog) and uses the last completed search pass.':'Below-normal priority with rest after each calculation. CPU load above 60% reduces concurrency to one; load above 85% or insufficient memory suspends new calculations.',
 ];
 let stopped=false,stopReason=null;
 const requestStop=()=>{stopped=true;stopReason='stopped-by-user';};
@@ -172,7 +173,7 @@ async function runGame({mode,seed,gameId}){
       };
       const failed=error=>finish(null,false,error),exited=code=>failed(new Error(`Worker가 결과 없이 종료되었습니다 (${code})`));
       const message=m=>{if(m.id!==id)return;if(m.error){failed(new Error(m.error));return;}if(m.progress){if(!latest?.complete||m.result.complete)latest=m.result;}else finish(m.result);};
-      const timer=setTimeout(()=>{worker=null;finish(latest,true);void active.terminate();},950);
+      const timer=setTimeout(()=>{worker=null;finish(latest,true);void active.terminate();},SOLVER_WATCHDOG_MS);
       active.on('message',message);active.once('error',failed);active.once('exit',exited);active.postMessage({id,input});
     });
   }

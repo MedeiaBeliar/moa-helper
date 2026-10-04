@@ -15,6 +15,8 @@ Validation is Node-only. Do not start a web server, launch a browser, or run bro
 
 `npm test` checks placement, skills, targets, observations, persistence, recognition, and library consolidation with Node's test runner. Tests named HTTP are excluded. Temporary fixtures isolate runner checks from the player's `data/state.json`.
 
+`node tests/runtime-check.mjs` runs four fixed-board recommendations in workers and checks the five-second limit, native progress, legal placement replay and skill consumption. Its JSON report is written to `test-results/runtime-check-native-default.json`. These are timing and correctness fixtures, not full-game score measurements.
+
 Statistics export tests verify stage and source denominators, unknown-stage records, HTML cell geometry, name escaping, and rich-text versus source clipboard payloads. Clipboard APIs are stubbed; browser rendering and external forum sanitizers are not exercised.
 
 The 500k runner checks use two workers, stop and resume temporary checkpoints, and verify separate cap and death results. Constructed endpoint fixtures test lifecycle behavior; their scores are not performance measurements. `npm run test:parallel` separately verifies the original low-load comparison's checkpoint behavior.
@@ -33,7 +35,7 @@ On Windows, double-click [`test-500k.cmd`](../test-500k.cmd). No configuration m
 npm run test:500k
 ```
 
-This preset runs two games concurrently with all automatic targets enabled, using seeds 509 and 510. It reads the saved blocks and stage statistics without changing the save. Both workers run at normal priority without artificial rest or load-based throttling. Each recommendation retains the application's one-second budget.
+This preset runs two games concurrently with all automatic targets enabled, using seeds 509 and 510. It reads the saved blocks and stage statistics without changing the save. Both workers run at normal priority without artificial rest or load-based throttling. Each recommendation uses the application's imported ensemble engine, increasing search width up to the original quality settings. The five-second limit includes a 100ms display reserve; the worker watchdog retains the latest validated plan after 4.9 seconds if a deeper pass is still running.
 
 Each game ends at 500,000 points or verified death. A cap result is marked `cap-reached`, not `dead`. Reaching an intermediate target is recorded and play continues. The display shows progress toward 500,000, points remaining, the next intermediate target, and exact arrivals for each game. The console stays open after completion.
 

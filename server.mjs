@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createStore, validateState } from './storage.mjs';
 
 const root = path.resolve(fileURLToPath(new URL('./public/', import.meta.url)));
-const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.png':'image/png', '.svg':'image/svg+xml', '.json':'application/json', '.woff2':'font/woff2' };
+const types = { '.html':'text/html; charset=utf-8', '.js':'text/javascript; charset=utf-8', '.css':'text/css; charset=utf-8', '.png':'image/png', '.svg':'image/svg+xml', '.json':'application/json', '.woff2':'font/woff2', '.wasm':'application/wasm' };
 export function createServer({ dataDir = fileURLToPath(new URL('./data/', import.meta.url)) } = {}) {
   const store = createStore(dataDir);
   return http.createServer(async (req, res) => {
@@ -36,7 +36,7 @@ export function createServer({ dataDir = fileURLToPath(new URL('./data/', import
       res.writeHead(200, {
         'Content-Type': types[path.extname(file)] || 'application/octet-stream',
         'Cache-Control':'no-store', 'X-Content-Type-Options':'nosniff',
-        'Content-Security-Policy': "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; frame-ancestors 'none'",
+        'Content-Security-Policy': "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; worker-src 'self'; frame-ancestors 'none'",
         'Referrer-Policy':'no-referrer'
       });
       res.end(req.method === 'HEAD' ? undefined : data);

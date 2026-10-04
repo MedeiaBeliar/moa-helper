@@ -1,5 +1,9 @@
 # Third-party notices
 
+## Supplied calculation engine
+
+`public/native-engine.wasm` is the unmodified `native25` WebAssembly payload extracted from the HTML supplied by the project owner on October 4, 2026. SHA-256: `c774b91f06593d8c0e20a774b0fcfafd69f56219d7f50a738e275c531d4d7704`. It has no host imports. The reference page's interface, storage and record-upload code are not included. The binary's upstream source and license were not supplied; this repository's MIT license does not relicense that binary.
+
 ## Pretendard
 
 The interface uses [Pretendard 1.3.9](https://github.com/orioncactus/pretendard/tree/v1.3.9), copyright Kil Hyung-jin, distributed under the SIL Open Font License 1.1. The original variable WOFF2 file is bundled without modification. Its [license text](public/fonts/Pretendard-LICENSE.txt) is included.

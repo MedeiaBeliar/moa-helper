@@ -1,5 +1,6 @@
 import {t, getLanguage, setLanguage, onLanguageChange, bindStaticTranslations} from './i18n.js';
 import { normalize, canPlace, place, skillCounts } from './solver.js';
+import {SOLVER_WATCHDOG_MS} from './native-engine.js';
 import { overlayCells, completePlan, applyPartialPlan, applyReroll, isOrderIndependent, applyTargetPlan } from './plan.js';
 import { ScreenCapture } from './capture.js';
 import { stateFromCapture, rerollFromCapture } from './capture-state.js';
@@ -408,7 +409,7 @@ function renderRecommendations() {
   if(strategy?.enumeratedCandidates)$('recommend-summary').append(el('p',t`후보 ${strategy.enumeratedCandidates}개에서 다음 조각 ${strategy.enumeratedTypes}종을 전부 비교했습니다.`));
   const probabilityStage=strategy?.nextStage??strategy?.stage,probabilitySamples=strategy?.nextStageSamples??strategy?.stageSamples;
   const probabilitySource=probabilitySamples?t`${probabilityStage}단계 일반 출현 ${probabilitySamples}회 · 전체 ${strategy.observedSamples}회로 보정.`:strategy?.observedSamples?t`일반 출현 전체 ${strategy.observedSamples}회 · 현재 단계 표본 없음.`:t('출현 기록이 없어 균등한 가상 시나리오를 사용합니다.');
-  const forecast=strategy?t` ${state.blocks.length}종 공간 평가 · 향후 ${strategy.depth}세트 시나리오 ${strategy.tested}개 비교${strategy.skipped?t` · 시간 부족 ${strategy.skipped}개 제외`:''}. ${probabilitySource} 미래는 추가 스킬 없이 점검하며 실제 확률·생존을 보장하지 않습니다.`:'';
+  const forecast=strategy?.profile==='native'?t` 혼합 전략 · 다음 세트 비교 ${strategy.tested}회 · 단계별·전체 일반 출현 기록을 사용합니다. 보유 스킬과 표시된 능력을 고려하며 새 능력 위치는 예측하지 않습니다.`:strategy?t` ${state.blocks.length}종 공간 평가 · 향후 ${strategy.depth}세트 시나리오 ${strategy.tested}개 비교${strategy.skipped?t` · 시간 부족 ${strategy.skipped}개 제외`:''}. ${probabilitySource} 미래는 추가 스킬 없이 점검하며 실제 확률·생존을 보장하지 않습니다.`:'';
   $('search-meta').textContent=t`조각 배치 = 칸 수만큼 점수 · 동시 제거 n줄 = 300 × n²점. 직접 표시한 능력 획득은 1개당 50점과 보유 한도를 반영합니다. 새로 생길 능력은 예측하지 않습니다. 점 찍기 자체도 1점을 얻습니다. ${(result.duration/1000).toFixed(2)}초 · ${result.nodes.toLocaleString()}개 후보 · 제한 탐색${result.timedOut?t(' (시간 한도 도달)'):''}.${forecast} 좌표는 변형 후 모양의 왼쪽 위 기준입니다.`;
 }
 function render() {
@@ -421,7 +422,7 @@ function render() {
   $('cols').value=state.cols;$('rows').value=state.rows;
   $('skill-dot').value=state.skills.dot;$('skill-reroll').value=state.skills.reroll;
   $('skill-total').textContent=t`${state.skills.dot+state.skills.reroll} / 7개`;
-  $('catalogue-info').textContent=t`1초 이내 추천 · 저장된 ${state.blocks.length}종의 배치 공간을 확인하고, 남는 시간에 다음 한 세트까지 비교합니다.`;
+  $('catalogue-info').textContent=t`혼합 전략 추천 · 저장된 ${state.blocks.length}종과 다음 한 세트를 비교합니다. 계산에 몇 초 걸릴 수 있습니다.`;
   for(const key of ['rotate','reflect'])$(key).checked=state.options[key];renderPip();
 }
 function setMode(next) { mode=next;placement=null;hover=null;preview=-1;renderBoard();renderTray();renderRecommendations();renderPip(); }
@@ -508,7 +509,7 @@ function solveBoard() {
   targetPaused=false;
   const recorded=recordNormalDraws(state);if(recorded!==state){state=recorded;dirty();}
   invalidate();placement=null;hover=null;mode='paint';busy=true;const id=generation;
-  const wallLimit=950;
+  const wallLimit=SOLVER_WATCHDOG_MS;
   worker=new Worker('/solver-worker.js',{type:'module'});
   let latest=null;
   const finish=(data)=>{
@@ -520,11 +521,11 @@ function solveBoard() {
   };
   worker.onmessage=({data})=>{
     if(data.id!==generation)return;
-    if(data.progress){if(!latest?.complete||data.result.complete)latest=data.result;$('recommend-summary').replaceChildren(el('strong',latest.complete?t('생존 배치 확보 · 더 좋은 수 비교 중'):t('생존 경로를 찾는 중')),el('p',t('1초 이내로 추천을 계산 중입니다.')));return;}
+    if(data.progress){if(!latest?.complete||data.result.complete)latest=data.result;$('recommend-summary').replaceChildren(el('strong',latest.complete?t('생존 배치 확보 · 더 좋은 수 비교 중'):t('생존 경로를 찾는 중')),el('p',t('혼합 전략으로 다음 조각까지 비교 중입니다.')));return;}
     finish(data);
   };
   worker.onerror=()=>{if(id!==generation)return;invalidate();render();message(()=>(t('탐색 중 오류가 발생했습니다. 다시 시도해 주세요.')),true);};
-  searchTimer=setTimeout(()=>finish(latest?{result:{...latest,timedOut:true,duration:wallLimit}}:{error:t('1초 제한에 도달했습니다. 보드를 확인한 뒤 다시 계산해 주세요.')}),wallLimit);
+  searchTimer=setTimeout(()=>finish(latest?{result:{...latest,timedOut:true,duration:wallLimit}}:{error:t('계산 시간이 길어 중단했습니다. 보드를 확인한 뒤 다시 계산해 주세요.')}),wallLimit);
   worker.postMessage({id,input:{board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:solverStatistics(),clearedLines:state.clearedLines,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,manualTargets:state.manualTargets,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}}});render();
 }
 function finishTarget(){
@@ -755,7 +756,7 @@ async function boot() {
     $('stage-server-warning').hidden=stagePersistenceSupported;
     if(!stagePersistenceSupported){$('save-status').textContent=t('서버 재시작 필요');$('save-status').classList.add('error');if(draft)dirty();}
     if(correctedGravity){dirty();message(()=>(t('줄 제거 후 나머지 칸을 유지하도록 설정을 바로잡았습니다. 이미 어긋난 보드는 화면공유 탭에서 현재 게임 이미지를 붙여넣어 다시 맞춰 주세요.')));}
-    else if(upgradedStrategy){dirty();message(()=>(t('1초 이내 추천으로 업데이트했습니다. 저장한 블록과 보드는 그대로 유지됩니다.')));}
+    else if(upgradedStrategy){dirty();message(()=>(t('계산 엔진을 업데이트했습니다. 저장한 블록과 보드는 그대로 유지됩니다.')));}
   }catch(error){message(()=>(hosted?t`${t(error.message)} 브라우저 저장소와 연결 상태를 확인한 뒤 새로고침해 주세요.`:t`${t(error.message)} 서버를 실행한 뒤 새로고침해 주세요.`),true);$('save-status').textContent=t('연결 실패');$('save-status').classList.add('error');}
 }
 $('language').value=getLanguage();

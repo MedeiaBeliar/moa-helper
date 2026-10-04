@@ -82,6 +82,8 @@ function replay(state, result) {
     board = next.board;
     clearedLines=addClearedLines(clearedLines,next.cleared.length);
     actualMoves.push({...move,cleared:next.cleared});
+    // A native plan may spend a known dot acquired by an earlier row clear.
+    Object.assign(skills,scoreMoves(state.currentScore,actualMoves,{skillIcons:state.skillIcons,skills:state.skills}).skillsAfter);
   }
   const scored=scoreMoves(state.currentScore,actualMoves,{skillIcons:state.skillIcons,skills:state.skills});
   return {...state,board,skills:scored.skillsAfter,skillIcons:scored.icons,skillIconOrder:remainingIconOrder(state,scored.icons),
