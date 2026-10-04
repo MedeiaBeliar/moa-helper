@@ -6,6 +6,7 @@ import {place} from '../public/solver.js';
 import {SOLVER_MAX_MS,SOLVER_WATCHDOG_MS} from '../public/native-engine.js';
 const catalogue=JSON.parse(await readFile(new URL('./fixtures/catalogue.json',import.meta.url),'utf8'));
 const fixtures=[
+  {name:'reported-first-batch',board:Array(16).fill(0),batch:[5,9,15],skills:{dot:0,reroll:0}},
   {name:'empty-large-shapes',board:Array(16).fill(0),batch:[12,18,20],skills:{dot:0,reroll:0}},
   {name:'screen-seven-dots',board:[772,287,778,260,640,256,0,0,0,0,0,0,0,0,0,0],batch:[11,19,11],skills:{dot:7,reroll:0}},
   {name:'seven-rerolls',board:Array(16).fill(0),batch:[12,18,20],skills:{dot:0,reroll:7}},
@@ -13,7 +14,7 @@ const fixtures=[
 ];
 const reports=[];
 async function recommend(input){
-  const started=performance.now(),worker=new Worker(new URL('./target-worker.mjs',import.meta.url));
+  const started=performance.now(),worker=new Worker(new URL('./fixtures/web-worker-host.mjs',import.meta.url));
   let latest=null,firstPlanMs=null,firstNativeMs=null,updates=0,timer;
   try{return await new Promise((resolve,reject)=>{
     let settled=false;
@@ -24,7 +25,8 @@ async function recommend(input){
       resolve({result,wallMs:performance.now()-started,firstPlanMs,firstNativeMs,updates,timedOut});
     };
     worker.on('message',message=>{
-      if(message.ready){worker.postMessage({id:1,input});return;}
+      if(message.testEvent==='unhandled-input'){finish(null,false,new Error('Worker dropped the calculation request'));return;}
+      if(message.testEvent)return;
       if(message.error){finish(null,false,new Error(message.error));return;}
       if(message.progress){
         updates++;
@@ -36,6 +38,7 @@ async function recommend(input){
     worker.on('error',error=>finish(null,false,error));
     worker.on('exit',code=>finish(null,false,new Error(`Worker exited without a result: ${code}`)));
     timer=setTimeout(()=>finish(latest,true),SOLVER_WATCHDOG_MS);
+    worker.postMessage({id:1,input});
   });}finally{clearTimeout(timer);await worker.terminate();}
 }
 for(const fixture of fixtures){

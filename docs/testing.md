@@ -15,7 +15,9 @@ Validation is Node-only. Do not start a web server, launch a browser, or run bro
 
 `npm test` checks placement, skills, targets, observations, persistence, recognition, and library consolidation with Node's test runner. Tests named HTTP are excluded. Temporary fixtures isolate runner checks from the player's `data/state.json`.
 
-`node tests/runtime-check.mjs` runs four fixed-board recommendations in workers and checks the five-second limit, native progress, legal placement replay and skill consumption. Its JSON report is written to `test-results/runtime-check-native-default.json`. These are timing and correctness fixtures, not full-game score measurements.
+`node tests/runtime-check.mjs` runs five fixed-board recommendations through the production worker entry in a Node-only host, without a ready handshake. It checks the five-second limit, native progress, legal placement replay and skill consumption, including the reported first batch. Its JSON report is written to `test-results/runtime-check-native-default.json`. These are timing and correctness fixtures, not full-game score measurements.
+
+Worker startup regressions dispatch requests during delayed native initialization, run another request on an initialized worker, and simulate native compilation failure. The production entry must register its message handler before importing the asynchronous solver module, so its initial request is retained while loading.
 
 Statistics export tests verify stage and source denominators, unknown-stage records, HTML cell geometry, name escaping, and rich-text versus source clipboard payloads. Clipboard APIs are stubbed; browser rendering and external forum sanitizers are not exercised.
 
