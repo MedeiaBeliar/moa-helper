@@ -1,6 +1,6 @@
 import {normalize,variants,place,skillCounts} from './solver.js';
 import {solveFast} from './fast.js';
-import {NATIVE_SETTINGS,NATIVE_PASSES,SOLVER_WATCHDOG_MS,nativeEngineStatus,runNativeEngine} from './native-engine.js';
+import {NATIVE_SETTINGS,NATIVE_PASSES,SOLVER_WATCHDOG_MS,nextNativePass,nativeEngineStatus,runNativeEngine} from './native-engine.js';
 import {shapeKey} from './library.js';
 import {stageForLines} from './statistics.js';
 import {scoreMoves,activeTargets,targetPath,nextTarget} from './targets.js';
@@ -113,6 +113,9 @@ function leaveSkillSpace(input,candidate){
 
 export function solveNative(input,{onProgress}={}){
   const started=performance.now(),skills=skillCounts(input.skills),stats=nativeStatistics(input);
+  const deadline=Math.min(started+SOLVER_WATCHDOG_MS-70,
+    Number.isFinite(input.options?.nativeDeadline)?input.options.nativeDeadline-performance.timeOrigin:Infinity);
+  const request=nativeInput(input);
   const targets=activeTargets({...input,targetEnabled:input.targetEnabled===true});
   const prepared=preparePolicyCatalogue(input.catalogue||[],input.cols,input.board.length,input.options);
   const geometry=c=>{
@@ -121,7 +124,7 @@ export function solveNative(input,{onProgress}={}){
     return mobilityReport(c.board,input.cols,prepared,distribution.weights);
   };
   function finish(candidate,raw={}){
-    candidate=optimizeMoveOrder(input,candidate,{deadline:performance.now()+25});
+    candidate=optimizeMoveOrder(input,candidate,{deadline:Math.min(deadline,performance.now()+8)});
     const replay=scoreMoves(input.currentScore,candidate.moves,{skills,skillIcons:input.skillIcons});
     const complete=candidate.depth===input.pieces.length&&replay.held<7&&!candidate.reroll;
     const path=targetPath(input.currentScore,replay.moves,targets),report=geometry(candidate);
@@ -144,30 +147,39 @@ export function solveNative(input,{onProgress}={}){
   }
   // Publish a small legal fallback before the synchronous native call. A
   // watchdog can recover this plan if the imported engine stalls.
-  const seed=solveFast({...input,options:{...input.options,timeLimit:80}});
+  const seed=solveFast({...input,options:{...input.options,timeLimit:45}});
   onProgress?.(seed);
   const upcoming=nextTarget(input.currentScore,targets);
-  const target=seed.target?.hit?seed:upcoming!==null&&upcoming-input.currentScore<=1800
-    ?solveFast({...input,options:{...input.options,timeLimit:250}}):null;
+  let target=seed.target?.hit?seed:null;
   let result=seed,candidate=null;
-  for(const settings of NATIVE_PASSES){
+  let index=0,passes=0;
+  while(index>=0&&passes<3){
+    const settings=NATIVE_PASSES[index],passStarted=performance.now();
     // Wasm calls are synchronous. The outer worker watchdog can terminate a
     // pass while retaining the last fully validated recommendation below.
-    if(performance.now()-started>SOLVER_WATCHDOG_MS-400)break;
+    if(passStarted>deadline-40)break;
     try{
-      const raw=runNativeEngine(nativeInput(input,settings));
+      const raw=runNativeEngine({...request,nativeConfig:settings});
       const next=leaveSkillSpace(input,adaptNativePlan(input,raw));
-      if(next.held>=7&&!next.reroll||next.depth<input.pieces.length&&!next.reroll&&result.complete)continue;
-      candidate=next;result=finish(candidate,raw);
+      passes++;
+      const valid=!(next.held>=7&&!next.reroll||next.depth<input.pieces.length&&!next.reroll&&result.complete);
+      if(valid){candidate=next;result=finish(candidate,raw);}
+      // Run optional exact-target refinement only after a native result is
+      // available. Its own incumbent is already safe at the host deadline.
+      result={...result,duration:Math.round(performance.now()-started)};onProgress?.(result);
+      if(valid&&!target&&upcoming!==null&&upcoming-input.currentScore<=1800&&performance.now()<deadline-140){
+        target=solveFast({...input,options:{...input.options,timeLimit:80}});
+      }
       // Preserve exact targets before publishing each pass, so the watchdog
       // cannot discard target handling by interrupting a later native call.
-      if(result.complete&&!result.target?.hit&&target?.complete&&target.target?.hit){
+      if(valid&&result.complete&&!result.target?.hit&&target?.complete&&target.target?.hit){
         const alternate={board:target.moves.at(-1)?.boardAfter??input.board,lines:target.lines},before=geometry(candidate),after=geometry(alternate);
         if(after.blockedMass<=before.blockedMass&&after.minFits>=before.minFits&&after.meanLog>=before.meanLog-.2
           &&target.skillsUsed.dot<=candidate.dots+1)result={...target,method:'native',strategy:result.strategy,nativeTargetRefinement:true};
       }
       result={...result,duration:Math.round(performance.now()-started)};onProgress?.(result);
       if(result.reroll?.reason==='capacity')break;
+      index=nextNativePass(index,performance.now()-passStarted,deadline-performance.now());
     }catch(error){
       result={...result,nativeFallback:true,nativeError:error.message};break;
     }

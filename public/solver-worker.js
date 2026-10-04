@@ -4,8 +4,10 @@ let solver;
 self.onmessage = async ({data}) => {
   let lastPosted=-Infinity;
   try {
+    if(!solver&&data.engineModule instanceof WebAssembly.Module)globalThis[Symbol.for('moa.nativeModule')]=data.engineModule;
     const {solve}=await (solver??=import('./solver.js'));
-    self.postMessage({id:data.id, result:solve(data.input,{onProgress:result=>{
+    const input={...data.input,options:{...data.input.options,nativeDeadline:data.deadline}};
+    self.postMessage({id:data.id, result:solve(input,{onProgress:result=>{
     if(performance.now()-lastPosted<150&&!result.complete)return;
     lastPosted=performance.now();self.postMessage({id:data.id,progress:true,result});
   }})}); }

@@ -1,6 +1,6 @@
 import {t, getLanguage, setLanguage, onLanguageChange, bindStaticTranslations} from './i18n.js';
 import { normalize, canPlace, place, skillCounts } from './solver.js';
-import {SOLVER_WATCHDOG_MS} from './native-engine.js';
+import {startSolverRequest} from './solver-session.js';
 import { overlayCells, completePlan, applyPartialPlan, applyReroll, isOrderIndependent, applyTargetPlan } from './plan.js';
 import { ScreenCapture } from './capture.js';
 import { stateFromCapture, rerollFromCapture } from './capture-state.js';
@@ -29,7 +29,7 @@ function renderCommunityStatus(){
 }
 let state, loaded = false, revision = 0, savedRevision = 0, saving = false, saveTimer;
 let stagePersistenceSupported=true;
-let worker, searchTimer, generation = 0, result = null, preview = -1, busy = false;
+let worker, generation = 0, result = null, preview = -1, busy = false;
 let targetPaused=false;
 let mode = 'paint', placement = null, hover = null, drag = null, dotDrag = null;
 let editorId = null, dots = new Set(), history = [], pipWindow = null;
@@ -113,7 +113,7 @@ async function save() {
   finally { saving=false; if(savedRevision===target && revision!==target)save(); }
 }
 function invalidate() {
-  generation++; clearTimeout(searchTimer);worker?.terminate(); worker=null; result=null; preview=-1; busy=false;
+  generation++;worker?.terminate(); worker=null; result=null; preview=-1; busy=false;
 }
 function changed({search=true,keepTargetPause=false}={}) { if(search){if(!keepTargetPause)targetPaused=false;invalidate();} dirty(); render(); }
 function shape(cells, width=64,height=64, step=null) {
@@ -422,7 +422,7 @@ function render() {
   $('cols').value=state.cols;$('rows').value=state.rows;
   $('skill-dot').value=state.skills.dot;$('skill-reroll').value=state.skills.reroll;
   $('skill-total').textContent=t`${state.skills.dot+state.skills.reroll} / 7개`;
-  $('catalogue-info').textContent=t`혼합 전략 추천 · 저장된 ${state.blocks.length}종과 다음 한 세트를 비교합니다. 계산에 몇 초 걸릴 수 있습니다.`;
+  $('catalogue-info').textContent=t`1초 혼합 전략 · 저장된 ${state.blocks.length}종과 다음 한 세트를 남은 시간에 맞춰 비교합니다.`;
   for(const key of ['rotate','reflect'])$(key).checked=state.options[key];renderPip();
 }
 function setMode(next) { mode=next;placement=null;hover=null;preview=-1;renderBoard();renderTray();renderRecommendations();renderPip(); }
@@ -509,24 +509,18 @@ function solveBoard() {
   targetPaused=false;
   const recorded=recordNormalDraws(state);if(recorded!==state){state=recorded;dirty();}
   invalidate();placement=null;hover=null;mode='paint';busy=true;const id=generation;
-  const wallLimit=SOLVER_WATCHDOG_MS;
-  worker=new Worker('/solver-worker.js',{type:'module'});
-  let latest=null;
   const finish=(data)=>{
-    if(id!==generation)return;clearTimeout(searchTimer);busy=false;worker?.terminate();worker=null;
+    if(id!==generation)return;busy=false;worker?.terminate();worker=null;
     if(data.error){message(()=>(data.error),true);render();return;}
     result=data.result;preview=result.moves.length?-2:-1;render();capture.planReady();
     if(result.target?.hit){message(()=>(t`${result.target.hitStep}번까지만 놓으면 ${result.target.hit.toLocaleString()}점입니다. 목표에서 멈추려면 「목표 점수까지 반영」을 사용하세요.`));return;}
     message(()=>(isOrderIndependent(result,state.cols)?t('추천 위치를 색으로 표시했습니다. 순서 상관없이 모두 놓은 뒤 완료를 누르세요.'):result.complete?t('추천 전체를 색과 순서 번호로 표시했습니다. 게임에 순서대로 놓은 뒤 완료를 누르세요.'):result.reroll?.reason==='capacity'?t('보유 스킬을 7개 미만으로 유지하도록 먼저 다시 뽑기를 사용하세요. 실제로 나온 조각을 입력하면 이어서 추천합니다.'):result.reroll?t('다시 뽑기를 제안합니다. 표시된 순서를 진행하고 실제로 나온 조각을 입력해 주세요.'):result.moves.length?t('일부 배치를 찾았습니다. 실제로 놓은 뒤 일부 배치를 반영하고 남은 조각을 이어서 추천하세요.'):t('현재 탐색에서 배치를 찾지 못했습니다. 보드와 보유 스킬을 확인해 주세요.')));
   };
-  worker.onmessage=({data})=>{
-    if(data.id!==generation)return;
-    if(data.progress){if(!latest?.complete||data.result.complete)latest=data.result;$('recommend-summary').replaceChildren(el('strong',latest.complete?t('생존 배치 확보 · 더 좋은 수 비교 중'):t('생존 경로를 찾는 중')),el('p',t('혼합 전략으로 다음 조각까지 비교 중입니다.')));return;}
-    finish(data);
-  };
-  worker.onerror=()=>{if(id!==generation)return;invalidate();render();message(()=>(t('탐색 중 오류가 발생했습니다. 다시 시도해 주세요.')),true);};
-  searchTimer=setTimeout(()=>finish(latest?{result:{...latest,timedOut:true,duration:wallLimit}}:{error:t('계산 시간이 길어 중단했습니다. 보드를 확인한 뒤 다시 계산해 주세요.')}),wallLimit);
-  worker.postMessage({id,input:{board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:solverStatistics(),clearedLines:state.clearedLines,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,manualTargets:state.manualTargets,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}}});render();
+  const input={board:state.board,cols:state.cols,pieces:state.slots.filter(s=>!s.used).map(s=>({id:s.instanceId,cells:s.cells})),catalogue:state.blocks,statistics:solverStatistics(),clearedLines:state.clearedLines,skills:state.skills,currentScore:state.currentScore,targetEnabled:state.targetEnabled,manualTargets:state.manualTargets,skillIcons:state.skillIcons,options:{...state.options,solverProfile:'fast',timeLimit:850}};
+  worker=startSolverRequest(input,{id,onFinish:finish,onProgress:latest=>{
+    if(id!==generation)return;
+    $('recommend-summary').replaceChildren(el('strong',latest.complete?t('생존 배치 확보 · 더 좋은 수 비교 중'):t('생존 경로를 찾는 중')),el('p',t('혼합 전략으로 다음 조각까지 비교 중입니다.')));
+  }});render();
 }
 function finishTarget(){
   try{

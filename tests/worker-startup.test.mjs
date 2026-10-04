@@ -34,7 +34,7 @@ function request(worker,input,id){
   });
 }
 function verifyComplete(input,result){
-  assert.ok(result,'a recommendation must survive the five-second deadline');
+  assert.ok(result,'a recommendation must survive the one-second deadline');
   assert.equal(result.complete,true);assert.equal(result.moves.filter(m=>m.kind==='piece').length,3);
   const state={...initialState(),...input,blocks:catalogue,
     slots:input.pieces.map(piece=>({...piece,instanceId:piece.id,blockId:catalogue.find(b=>b.name===piece.name).id,used:false}))};

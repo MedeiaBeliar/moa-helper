@@ -1,8 +1,9 @@
 // Real wall-clock checks on the current host; no server or user save access.
 import {readFile,writeFile,mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
-import {Worker} from 'node:worker_threads';
 import {place} from '../public/solver.js';
+import {startSolverRequest} from '../public/solver-session.js';
+import {nodeSolverWorker} from './fixtures/node-solver-worker.mjs';
 import {SOLVER_MAX_MS,SOLVER_WATCHDOG_MS} from '../public/native-engine.js';
 const catalogue=JSON.parse(await readFile(new URL('./fixtures/catalogue.json',import.meta.url),'utf8'));
 const fixtures=[
@@ -14,37 +15,24 @@ const fixtures=[
 ];
 const reports=[];
 async function recommend(input){
-  const started=performance.now(),worker=new Worker(new URL('./fixtures/web-worker-host.mjs',import.meta.url));
-  let latest=null,firstPlanMs=null,firstNativeMs=null,updates=0,timer;
+  const started=performance.now();let worker,firstPlanMs=null,firstNativeMs=null,updates=0;
   try{return await new Promise((resolve,reject)=>{
-    let settled=false;
-    const finish=(result,timedOut=false,error=null)=>{
-      if(settled)return;settled=true;clearTimeout(timer);
-      worker.removeAllListeners();
-      if(error){reject(error);return;}
-      resolve({result,wallMs:performance.now()-started,firstPlanMs,firstNativeMs,updates,timedOut});
-    };
-    worker.on('message',message=>{
-      if(message.testEvent==='unhandled-input'){finish(null,false,new Error('Worker dropped the calculation request'));return;}
-      if(message.testEvent)return;
-      if(message.error){finish(null,false,new Error(message.error));return;}
-      if(message.progress){
+    startSolverRequest(input,{id:1,createWorker:()=>worker=nodeSolverWorker(),
+      onProgress:result=>{
         updates++;
-        if(message.result.complete&&firstPlanMs===null)firstPlanMs=performance.now()-started;
-        if(message.result.method==='native'&&firstNativeMs===null)firstNativeMs=performance.now()-started;
-        if(!latest?.complete||message.result.complete)latest=message.result;
-      }else finish(message.result);
+        if(result.complete&&firstPlanMs===null)firstPlanMs=performance.now()-started;
+        if(result.method==='native'&&firstNativeMs===null)firstNativeMs=performance.now()-started;
+      },onFinish:data=>{
+        if(data.error){reject(new Error(data.error));return;}
+        resolve({result:data.result,wallMs:performance.now()-started,firstPlanMs,firstNativeMs,updates,timedOut:data.result.timedOut});
+      }
     });
-    worker.on('error',error=>finish(null,false,error));
-    worker.on('exit',code=>finish(null,false,new Error(`Worker exited without a result: ${code}`)));
-    timer=setTimeout(()=>finish(latest,true),SOLVER_WATCHDOG_MS);
-    worker.postMessage({id:1,input});
-  });}finally{clearTimeout(timer);await worker.terminate();}
+  });}finally{await worker?.terminate();}
 }
 for(const fixture of fixtures){
   const pieces=fixture.batch.map((index,id)=>({...catalogue[index],id})),input={...fixture,cols:10,pieces,catalogue,options:{timeLimit:850}};
   const {result,wallMs,firstPlanMs,firstNativeMs,updates,timedOut}=await recommend(input);
-  assert.ok(wallMs<SOLVER_MAX_MS,`${fixture.name} exceeded the five-second limit: ${wallMs}`);
+  assert.ok(wallMs<SOLVER_MAX_MS,`${fixture.name} exceeded the one-second limit: ${wallMs}`);
   assert.ok(result,`${fixture.name} produced no plan before the deadline`);
   assert.equal(result.method,'native',`${fixture.name} did not finish even the first native pass`);
   let board=fixture.board,score=0,dots=0;const used=new Set();

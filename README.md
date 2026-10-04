@@ -54,7 +54,7 @@ Recognized pieces are counted only after their placements are committed. Re-read
 
 ## Search budget and measured results
 
-The standard 10 × 16 board uses the supplied **native25 WebAssembly ensemble engine**, with progressively deeper passes: beam widths 128, 320 and up to the original 640, up to 24 finalists and eight future-hand scenarios. The calculation budget is five seconds. The engine runs in a Web Worker; a 4.9-second watchdog retains the latest validated plan, reserving 100ms for message dispatch and display. Custom board sizes, restricted transformations and unsupported shapes use the existing JavaScript solver.
+The standard 10 × 16 board uses the supplied **native25 WebAssembly ensemble engine** with a **one-second response budget**. A narrow first pass keeps the original evaluation rules and future-hand search. Its measured cost determines the next search width, finalist count and probe depth; easier boards can reach the original settings. The compiled module is reused by each worker. A 900ms host watchdog retains the latest validated plan and reserves time for display. If the worker has not responded, a bounded backup search runs before that deadline. Custom board sizes, restricted transformations and unsupported shapes use the existing JavaScript solver. Browser suspension or a blocked operating system can still delay display.
 
 Six simulations of the previous JavaScript policy scored 106,403 to 500,000, averaging 260,550. Five ended in verified death; one reached the cap. These are historical results, not measurements of the imported engine. See the [full results, failed experiments and conditions](docs/benchmarks.md). No full-game score is claimed for the new engine.
 

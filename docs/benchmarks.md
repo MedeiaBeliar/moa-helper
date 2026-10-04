@@ -2,6 +2,14 @@
 
 [README](../README.md) · [Running current tests](testing.md)
 
+## October 4 native-engine response checks
+
+The one-second native profile was checked on Node 22.20.0, Windows and a Ryzen 5 5600G. The production request controller and worker ran through a Node-only transport adapter. No browser or web server was launched.
+
+Across 24 deterministic generated boards, including 16 requests in pairs, response time averaged 749ms, with a maximum of 915ms and a 95th percentile of 914ms. All 24 returned native-engine recommendations. Eleven reached the 900ms watchdog and retained a completed earlier pass; the other requests completed before it. All returned placements or reroll prefixes passed the application's commit validation. Fixtures included observation weights, stages, targets, marked abilities and skill inventories.
+
+These are timing and legality checks, not full-game performance measurements. They do not establish the original engine's score quality at the reduced budget or guarantee response timing under browser suspension or host overload. Run `node tests/one-second-check.mjs` to reproduce the fixture set; timings and selected search widths vary with load. The older game scores below belong to earlier policies.
+
 ## October 3 strategy experiments
 
 These experiments used 19 unique shapes, 2,472 normal observations and 62 reroll observations, with separate records for all five stages. Normal sample counts by stage were 666, 447, 458, 450 and 451; reroll counts were 0, 0, 8, 21 and 33. Missing reroll stages used the overall prior. The private input snapshot was frozen throughout the comparison.

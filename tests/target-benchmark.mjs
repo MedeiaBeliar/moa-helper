@@ -88,7 +88,7 @@ const conditions=[
   preset.stopAtCap?'Automatic targets are enabled in both games. Exact arrivals are recorded after each action; play ends at 500,000 points or verified death.':'Exact target arrivals are recorded after each action. Games continue through targets and the displayed score cap until verified death.',
   preset.stopAtCap?'Cap completion is recorded as cap-reached, separately from death. Stops, errors and timeouts are not deaths.':'500,000 points is a display cap, not a stopping condition. Stops, errors and timeouts are not deaths.',
   'Calculation time is a round trip to a ready worker and excludes queueing or rest. Parallel timing can differ from isolated timing.',
-  preset.maxSpeed?'Two simultaneous calculations, normal process priority, no artificial rest or load throttling. Each recommendation has a five-second limit (4.9-second worker watchdog) and uses the last completed search pass.':'Below-normal priority with rest after each calculation. CPU load above 60% reduces concurrency to one; load above 85% or insufficient memory suspends new calculations.',
+  preset.maxSpeed?'Two simultaneous calculations, normal process priority, no artificial rest or load throttling. Each recommendation has a one-second limit (900ms worker watchdog) and uses the last completed search pass.':'Below-normal priority with rest after each calculation. CPU load above 60% reduces concurrency to one; load above 85% or insufficient memory suspends new calculations.',
 ];
 let stopped=false,stopReason=null;
 const requestStop=()=>{stopped=true;stopReason='stopped-by-user';};

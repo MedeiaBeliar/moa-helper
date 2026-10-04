@@ -2,7 +2,7 @@
 export default {
   "혼합 전략으로 다음 조각까지 비교 중입니다.": "Comparing placements and future hands with the ensemble solver.",
   "계산 시간이 길어 중단했습니다. 보드를 확인한 뒤 다시 계산해 주세요.": "The search took too long and was stopped. Check the board and try again.",
-  "혼합 전략 추천 · 저장된 {0}종과 다음 한 세트를 비교합니다. 계산에 몇 초 걸릴 수 있습니다.": "Ensemble search compares {0} saved shapes and the next hand. Calculation can take several seconds.",
+  "1초 혼합 전략 · 저장된 {0}종과 다음 한 세트를 남은 시간에 맞춰 비교합니다.": "One-second ensemble search adapts comparisons of {0} saved shapes and the next hand to the remaining time.",
   "계산 엔진을 업데이트했습니다. 저장한 블록과 보드는 그대로 유지됩니다.": "The calculation engine has been updated. Saved blocks and the board are preserved.",
   " 혼합 전략 · 다음 세트 비교 {0}회 · 단계별·전체 일반 출현 기록을 사용합니다. 보유 스킬과 표시된 능력을 고려하며 새 능력 위치는 예측하지 않습니다.": " Ensemble search · {0} future-hand comparisons using stage and overall normal-draw observations. Held skills and marked abilities are included; new icon positions are not predicted.",
   "닫기": "Close",

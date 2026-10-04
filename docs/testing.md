@@ -15,9 +15,11 @@ Validation is Node-only. Do not start a web server, launch a browser, or run bro
 
 `npm test` checks placement, skills, targets, observations, persistence, recognition, and library consolidation with Node's test runner. Tests named HTTP are excluded. Temporary fixtures isolate runner checks from the player's `data/state.json`.
 
-`node tests/runtime-check.mjs` runs five fixed-board recommendations through the production worker entry in a Node-only host, without a ready handshake. It checks the five-second limit, native progress, legal placement replay and skill consumption, including the reported first batch. Its JSON report is written to `test-results/runtime-check-native-default.json`. These are timing and correctness fixtures, not full-game score measurements.
+`node tests/runtime-check.mjs` runs five fixed-board recommendations through the production request controller and worker in a Node-only host. It includes the compiled-module handoff, one-second limit, native progress, legal placement replay and skill consumption, including the reported first batch. Its JSON report is written to `test-results/runtime-check-native-default.json`. These are timing and correctness fixtures, not full-game score measurements.
 
-Worker startup regressions dispatch requests during delayed native initialization, run another request on an initialized worker, and simulate native compilation failure. The production entry must register its message handler before importing the asynchronous solver module, so its initial request is retained while loading.
+Worker startup regressions dispatch requests during delayed native initialization, run another request on an initialized worker, and simulate native compilation failure. The production entry must register its message handler before importing the asynchronous solver module, so its initial request is retained while loading. Request-controller checks cover module reuse, silent workers, creation failures, cancellation, stale replies and retention of a complete plan when a later pass is incomplete.
+
+`node tests/one-second-check.mjs` exercises 24 deterministic generated boards, including 16 requests in pairs. Fixtures cover different stages, observation weights, target scores, marked abilities and skill inventories. Each returned plan is replayed through the application commit path. The report is `test-results/native-one-second-check.json`; it records response time and search profile, not a final game score.
 
 Statistics export tests verify stage and source denominators, unknown-stage records, HTML cell geometry, name escaping, and rich-text versus source clipboard payloads. Clipboard APIs are stubbed; browser rendering and external forum sanitizers are not exercised.
 
@@ -37,7 +39,7 @@ On Windows, double-click [`test-500k.cmd`](../test-500k.cmd). No configuration m
 npm run test:500k
 ```
 
-This preset runs two games concurrently with all automatic targets enabled, using seeds 509 and 510. It reads the saved blocks and stage statistics without changing the save. Both workers run at normal priority without artificial rest or load-based throttling. Each recommendation uses the application's imported ensemble engine, increasing search width up to the original quality settings. The five-second limit includes a 100ms display reserve; the worker watchdog retains the latest validated plan after 4.9 seconds if a deeper pass is still running.
+This preset runs two games concurrently with all automatic targets enabled, using seeds 509 and 510. It reads the saved blocks and stage statistics without changing the save. Both workers run at normal priority without artificial rest or load-based throttling. Each recommendation uses the application's imported ensemble engine, adjusting search width to measured speed and remaining time. The one-second limit includes a 100ms display reserve; the worker watchdog retains the latest validated plan after 900ms if a deeper pass is still running.
 
 Each game ends at 500,000 points or verified death. A cap result is marked `cap-reached`, not `dead`. Reaching an intermediate target is recorded and play continues. The display shows progress toward 500,000, points remaining, the next intermediate target, and exact arrivals for each game. The console stays open after completion.
 
