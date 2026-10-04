@@ -21,8 +21,20 @@ test('compound finals, compound vowels and doubled consonants split without inve
   assert.equal(normalizeBlockInput('ㄲㄸㅃㅆㅉ'),'ㄱㄱㄷㄷㅂㅂㅅㅅㅈㅈ');
   assert.equal(normalizeBlockInput('QWERTOP'),'ㅂㅂㅈㅈㄷㄷㄱㄱㅅㅅㅒㅖ');
   assert.equal(normalizeBlockInput('ASDFGHJKL'),'ㅁㄴㅇㄹㅎㅗㅓㅏㅣ');
-  assert.equal(normalizeBlockInput('ㅑㅕㅛㅠㅐㅔㅒㅖ'),'ㅑㅕㅛㅠㅐㅔㅒㅖ');
+  assert.equal(normalizeBlockInput('ㅑㅕㅛㅠㅐㅔㅒㅖ'),'ㅑㅑㅑㅑㅐㅔㅒㅖ');
   assert.equal(normalizeBlockInput('값'),'ㄱㅏㅂㅅ');assert.equal(normalizeBlockInput('123?'),'123?');
+});
+
+test('rotated vowel aliases select the canonical ya block in search and reroll input',()=>{
+  const canonical={id:'ya',name:'ㅑ'},blocks=[canonical,{id:'legacy',name:'ㅛ'},{id:'english',name:'y'}];
+  for(const input of ['ㅛ','ㅠ','ㅕ','y','b','u','Y','B','U','ㅑ','i','I','ᅭ','ᅲ','ᅧ']){
+    assert.equal(normalizeBlockInput(input),'ㅑ',input);
+    assert.deepEqual(blocksNamed(blocks,input),[canonical],input);
+    assert.equal(blockNameIncludes('ㅑ',input),true,input);
+  }
+  for(const input of ['ㅛㅠㅕ','ybu','YBU',' y b u '])assert.equal(normalizeBlockInput(input),'ㅑㅑㅑ',input);
+  for(const input of ['겨','규','교','ru','rb','ry'])assert.equal(normalizeBlockInput(input),'ㄱㅑ',input);
+  assert.equal(normalizeBlockInput('ㅗㅜㅓ'),'ㅗㅜㅓ');
 });
 test('name lookup supports keyboard aliases while retaining literal names and ambiguous-name safeguards',()=>{
   const blocks=[{id:'a',name:'ㅅ'},{id:'b',name:'ㅣ'},{id:'c',name:'가로 다섯'}],before=structuredClone(blocks);

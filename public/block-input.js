@@ -15,12 +15,13 @@ export function normalizeBlockInput(value){
   return Array.from(value.normalize('NFD')).map(char=>{
     const letter=shifted[char]||keys[char.toLowerCase()]||jamo.get(char)||char;
     return combined[letter]||letter;
-  }).join('').replace(/\s/g,'');
+  }).join('').replace(/\s/g,'').replace(/[ㅛㅠㅕ]/g,'ㅑ');
 }
 export function blocksNamed(blocks,value){
-  const exact=value.trim().normalize('NFC'),literal=blocks.filter(block=>block.name.normalize('NFC')===exact);
-  if(literal.length)return literal;
   const normalized=normalizeBlockInput(value);
+  // These rotated/reflected vowel inputs always prefer the canonical block.
+  const exact=normalized==='ㅑ'?'ㅑ':value.trim().normalize('NFC'),literal=blocks.filter(block=>block.name.normalize('NFC')===exact);
+  if(literal.length)return literal;
   return normalized?blocks.filter(block=>normalizeBlockInput(block.name)===normalized):[];
 }
 export function blockNameIncludes(name,query){

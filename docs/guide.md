@@ -22,8 +22,11 @@ With no input field focused, typing an alphabetic key focuses block search and i
 | `ㄿㄱ`, `fvr` | `ㄹ`, `ㅍ`, `ㄱ` |
 | `ㄳㅇ`, `rtd` | `ㄱ`, `ㅅ`, `ㅇ` |
 | `긔`, `rml` | `ㄱ`, `ㅡ`, `ㅣ` |
+| `ㅛㅠㅕ`, `ybu` | `ㅑ`, `ㅑ`, `ㅑ` |
 
 Compound consonants, vowels, and composed syllables are split into basic letters. Missing or ambiguous names leave the selection unchanged. The same normalization applies to statistics search and reroll input.
+
+The vowels entered with Y, B and U are treated as the canonical block entered with I. This also applies to their Hangul equivalents and vowels inside composed syllables.
 
 ## Board editing
 
